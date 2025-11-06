@@ -37,13 +37,15 @@ global {
 	
 	// --- RUTAS DE ARCHIVOS GIS DEL ESTADIO ---
 	// 'road_file' ahora apunta a los CAMINOS
-	file road_file <- file("../includes/CAMINOS_ESTADIO.shp");
+	file road_file <- file("../includes/paths.shp");
 	// 'buildings' ahora apunta a los MUROS
-	file buildings <- file("../includes/MUROS.shp");
+	file buildings <- file("../includes/walls.shp");
 	
 	// ESTOS SE MANTIENEN para que la simulación funcione
-	file evac_points <- file("../includes/evacuation_environment.shp");
-	file water_body <- file("../includes/sea_environment.shp");
+	// (Usamos los puntos de evacuación originales del ejemplo)
+	file evac_points <- file("../includes/exits.shp");
+	// 'water_body' ya no se usa, el peligro se crea en 'init'
+	// file water_body <- file("../includes/city_environment/sea_environment.shp");
 	// ---------------------------------------------
 	
 	geometry shape <- envelope(envelope(road_file)+envelope(buildings)+envelope(evac_points));
@@ -61,13 +63,17 @@ global {
 		create road from:road_file;       // Crea "caminos"
 		create building from:buildings;   // Crea "muros"
 		create evacuation_point from:evac_points; // Crea "salidas"
-		create hazard from: water_body;   // Crea "fuego/humo"
 		
-		// --- CAMBIO DE LÓGICA DE INICIO ---
-		// Crea 'inhabitant' (espectadores) SOBRE los 'road' (caminos),
-		// ya que los 'building' ahora son solo muros.
+		// ¡MODIFICADO! El peligro (fuego/humo) ya no se carga de un archivo
+		create hazard number: 1 {
+			location <- world.shape.location; // Inicia en el centro del estadio
+			shape <- self.location buffer 10.0#m; // Dale una forma inicial pequeña
+		}
+		
+		// --- LÓGICA DE INICIO ORIGINAL ---
+		// Crea 'inhabitant' (espectadores) SOBRE los 'road' (caminos).
 		create inhabitant number:nb_of_people {
-			location <- any_location_in(one_of(road));
+			location <- any_location_in(one_of(road)); // << ¡VUELVE AL ORIGINAL!
 			safety_point <- any(evacuation_point);
 			perception_distance <- rnd(min_perception_distance, max_perception_distance);
 		}
@@ -144,7 +150,7 @@ species crisis_manager {
 
 /*
  * Representa el peligro (fuego/humo)
- * (Sin cambios)
+ * (Lógica de inicio cambiada en 'global.init')
  */
 species hazard {
 	
@@ -162,14 +168,14 @@ species hazard {
 	}
 	
 	aspect default {
-		// Sintaxis de transparencia corregida
-		draw shape color: rgb(255, 0, 0, 0.6);
+		// Sintaxis de transparencia corregida (0-255, no 0-1)
+		draw shape color: rgb(255, 0, 0, 150); // 150 es ~60% de opacidad
 	}
 }
 
 /*
  * Representa al espectador ('inhabitant')
- * (Sin cambios)
+ * (Sin cambios de lógica, solo de creación)
  */
 species inhabitant skills:[moving] {
 	
@@ -221,8 +227,8 @@ species evacuation_point {
 	int count_exit <- 0 update: length((inhabitant where each.saved) at_distance 2#m);
 		
 	aspect default {
-		// Sintaxis de transparencia corregida
-		draw circle(1#m+49#m*count_exit/nb_of_people) color: rgb(0, 255, 0, 0.7);
+		// Sintaxis de transparencia corregida (0-255, no 0-1)
+		draw circle(1#m+49#m*count_exit/nb_of_people) color: rgb(0, 255, 0, 180); // 180 es ~70% de opacidad
 	}
 }
 
@@ -264,6 +270,10 @@ species building {
 	}
 }
 
+/*
+ * NO HAY ASIENTOS
+ */
+
 experiment "Run_Stadium" type:gui {
 	float minimum_cycle_duration <- 0.1;
 		
@@ -282,7 +292,7 @@ experiment "Run_Stadium" type:gui {
 	
 	output {
 		display my_display type:3d axes:false{ 
-			// Dibuja las especies originales
+			// Dibuja las especies originales (SIN ASIENTOS)
 			species road;
 			species evacuation_point;
 			species building; // Esto dibujará los MUROS
