@@ -9,28 +9,15 @@
 ***/
 model StadiumEvacuation
 
+// OK
 global {
-	
-	// Simulation start date
-	date starting_date <- #now;
-	
-	// Time step (1 second is better for stadium movements)
-	float step <- 1#sec;
 	
 	int nb_of_spectators;
 	int nb_of_workers;
 	
 	// Perception distance
-	float min_perception_distance <- 2.0;
-	float max_perception_distance <- 10.0;
-	
-	// Corridor capacity: number of 'inhabitant' per meter
-	float road_density;
-	
-	// Alert strategy parameters
-	int time_after_last_stage;
-	string the_alert_strategy;
-	int nb_stages;
+	float min_perception_distance <- 1.0;
+	float max_perception_distance <- 5.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -45,15 +32,16 @@ global {
 	geometry shape <- envelope(envelope(road_file)+envelope(buildings)+envelope(evac_points));
 	
 	graph<geometry, geometry> road_network;
-	map<road,float> road_weights;
 	
 	// Data output
-	int casualties;
+	int victims;
+	int safe_people;
+	
 	
 	init {
 		create road from:road_file;       // Creates "paths"
 		create building from:buildings;   // Creates "walls"
-		create evacuation_point from:evac_points; // Creates "exits" (default: 2)
+		create evacuation_point from:evac_points; // Creates "exits" (2)
 		
 		create hazard number: 1 {
 			location <- any_location_in(world);
@@ -62,7 +50,7 @@ global {
 		create spectator number:nb_of_spectators {
 			location <- any_location_in(one_of(road)); 
 			safety_point <- evacuation_point closest_to(self);
-			perception_distance <- rnd(min_perception_distance, max_perception_distance);
+			perception_distance <- rnd(min_perception_distance, max_perception_distance); 
 		}
 		create worker number: nb_of_workers {
 			location <- any_location_in(one_of(road)); 
@@ -71,7 +59,6 @@ global {
 		}
 		
 		road_network <- as_edge_graph(road);
-		road_weights <- road as_map (each::each.shape.perimeter);
 	
 	}
 	
@@ -104,28 +91,29 @@ species hazard {
 	}
 }
 
+// OK
 species person skills:[moving] {
     bool alerted;
     bool drowned;
     bool saved;
     float perception_distance;
     evacuation_point safety_point;
-    float speed; 
     
     reflex drown when:not(drowned or saved) {
         if(first(hazard) covers self){
             drowned <- true;
-            casualties <- casualties + 1; 
+            victims <- victims + 1; 
         }
     }
-    
     reflex escape when: not(saved) and location distance_to safety_point < 2#m{
         saved <- true;
         alerted <- false;
+        safe_people <- safe_people + 1;
     }
 }
 
-species spectator parent: person {
+// TODO: BDI agent
+species spectator parent: person control: simple_bdi {
     
     // Perceive alerted people nearby (workers or other spectators)
     reflex perceive when: not(alerted or drowned) {
@@ -135,11 +123,7 @@ species spectator parent: person {
     }
     
     reflex evacuate when: alerted and not(drowned or saved) {
-        do goto target:safety_point on: road_network move_weights:road_weights;
-        if(current_edge != nil){
-            road the_current_road <- road(current_edge);  
-            the_current_road.users <- the_current_road.users + 1;
-        }
+        do goto target:safety_point on: road_network;
     }
     
     aspect default {
@@ -147,6 +131,7 @@ species spectator parent: person {
     }
 }
 
+// TODO: BDI agent
 species worker parent: person {
     
     init {
@@ -154,11 +139,7 @@ species worker parent: person {
     }
     
     reflex evacuate when: alerted and not(drowned or saved) {
-        do goto target:safety_point on: road_network move_weights:road_weights;
-        if(current_edge != nil){
-            road the_current_road <- road(current_edge);  
-            the_current_road.users <- the_current_road.users + 1;
-        }
+        do goto target:safety_point on: road_network;
     }
     
     aspect default {
@@ -178,56 +159,26 @@ species evacuation_point {
 	}
 }
 
-
+// OK
 species road {
-	
-	int users;
-	int capacity <- int(shape.perimeter*road_density);
-	float speed_coeff <- 1.0;
-	
-	reflex update_weights {
-		speed_coeff <- max(0.05,exp(-users/capacity));
-		road_weights[self] <- shape.perimeter / speed_coeff;
-		users <- 0;
-	}
-	
-	reflex flood_road {
-		if(hazard first_with (each covers self) != nil){
-			road_network >- self; 
-			do die;
-		}
-	}
-	
 	aspect default{
-		draw shape width: 4#m-(3*speed_coeff)#m color:rgb(55+200*users/capacity,0,0);
+		draw shape width: 4#m color:rgb(55,0,0);
 	}	
 }
 
-/*
- * The stadium walls ('building')
- * (No changes)
- */
+// OK
 species building {
 	aspect default {
 		draw shape color: #gray border: #black depth: 1;
 	}
 }
 
-/*
- * NO SEATS
- */
 
 experiment "Run_Stadium" type:gui {
 	float minimum_cycle_duration <- 0.1;
 		
 	// --- ADJUSTED PARAMETERS ---
-	
-	parameter "Alert Strategy" var:the_alert_strategy init:"EVERYONE" among:["NONE","STAGED","SPATIAL","EVERYONE"] category:"Alert";
-	parameter "Number of Stages" var:nb_stages init:6 category:"Alert";
-	parameter "Buffer Time (min)" var:time_after_last_stage init:2 unit:"min" category:"Alert";
-	
-	parameter "Path Density" var:road_density init:4.0 min:0.1 max:10.0 category:"Congestion";
-	
+			
 	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
 	
@@ -244,7 +195,8 @@ experiment "Run_Stadium" type:gui {
 			species spectator;
 			species worker;
 		}
-		monitor "Number of Victims" value:casualties;
+		monitor "Number of Saved people: " value: safe_people; 
+		monitor "Number of Victims: " value:victims;
 	}	
 	
 }
