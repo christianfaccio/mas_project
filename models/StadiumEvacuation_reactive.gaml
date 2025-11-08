@@ -16,8 +16,8 @@ global {
 	int nb_of_workers;
 	
 	// Perception distance
-	float min_perception_distance <- 1.0;
-	float max_perception_distance <- 5.0;
+	float min_perception_distance <- 10.0;
+	float max_perception_distance <- 10.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -91,59 +91,151 @@ species hazard {
 	}
 }
 
-// OK
-species person skills:[moving] {
-    bool alerted;
-    bool drowned;
+species spectator skills:[moving] control: simple_bdi {
+	
+	bool drowned;
     bool saved;
     float perception_distance;
+    float speed <- 5.0 #km / #h;
     evacuation_point safety_point;
+    bool being_alerted <- false;
+    
+    // BELIEFS
+    predicate not_alerted <- new_predicate("not_alerted");
+    predicate alerted <- new_predicate("alerted");
+    predicate dead <- new_predicate("dead");
+    
+    // DESIRES
+    predicate watch <- new_predicate("watch");
+    predicate escape <- new_predicate("escape");
+
+   	init {
+   		do add_belief(not_alerted);
+   		do add_desire(watch);
+   	}
+   	
+   	// Reflexes ---------------------------------------------------------------------------------------
     
     reflex drown when:not(drowned or saved) {
         if(first(hazard) covers self){
             drowned <- true;
             victims <- victims + 1; 
+            do die;
         }
     }
-    reflex escape when: not(saved) and location distance_to safety_point < 2#m{
+    
+    reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
         saved <- true;
-        alerted <- false;
         safe_people <- safe_people + 1;
+        do die;
+    }
+    
+    // DIRECT MOVEMENT when alerted - bypassing BDI plan execution timing issue
+    reflex move_to_safety when: being_alerted and not (saved or drowned) {
+        do goto target: safety_point on: road_network speed: speed;
+    }
+    
+    // Perceptions
+   	reflex perceive_alert when: not being_alerted {
+   		// Check for nearby workers
+   		list<worker> nearby_workers <- worker at_distance perception_distance;
+   		if not empty(nearby_workers) {
+   			being_alerted <- true;
+   			do remove_belief(not_alerted);
+   			do add_belief(alerted);
+   			do remove_desire(watch);
+   			do add_desire(predicate: escape, strength: 5.0);
+   		}
+   		
+   		// Check for nearby alerted spectators
+   		list<spectator> nearby_alerted <- (spectator at_distance perception_distance) where (each.being_alerted);
+   		if not empty(nearby_alerted) {
+   			being_alerted <- true;
+   			do remove_belief(not_alerted);
+   			do add_belief(alerted);
+   			do remove_desire(watch);
+   			do add_desire(predicate: escape, strength: 5.0);
+   		}
+   	}
+   	
+	// Rules
+    rule belief: not_alerted new_desire: watch strength: 1.0;
+    rule belief: alerted new_desire: escape strength: 2.0;
+    
+    // Plans ------------------------------------------------------------------------------------------
+    plan watching intention: watch {
+		// Just watching
+    }
+    
+    plan escape_danger intention: escape {
+    	// Movement now handled by reflex above
+    }
+    
+    aspect default {
+        draw sphere(1#m) color: drowned ? #black : (being_alerted ? #orange : #red);
     }
 }
 
-// TODO: BDI agent
-species spectator parent: person control: simple_bdi {
+species worker skills: [moving] control: simple_bdi{
+	
+	bool drowned;
+    bool saved;
+    float perception_distance;
+    float speed <- 5.0 #km / #h;
+    evacuation_point safety_point;
+    bool being_alerted <- true;
     
-    // Perceive alerted people nearby (workers or other spectators)
-    reflex perceive when: not(alerted or drowned) {
-        if not empty((worker + spectator) at_distance perception_distance where each.alerted) {
-            alerted <- true;
+    // BELIEFS
+    predicate not_alerted <- new_predicate("not_alerted");
+    predicate alerted <- new_predicate("alerted");
+    predicate dead <- new_predicate("dead");
+    
+    // DESIRES
+    predicate watch <- new_predicate("watch");
+    predicate escape <- new_predicate("escape");
+
+   	init {
+   		do add_belief(alerted);
+   		do add_desire(escape);
+   		being_alerted <- true;
+   	}
+   	
+   	// Reflexes ---------------------------------------------------------------------------------------
+    
+    reflex drown when:not(drowned or saved) {
+        if(first(hazard) covers self){
+            drowned <- true;
+            victims <- victims + 1; 
+            do die;
         }
     }
     
-    reflex evacuate when: alerted and not(drowned or saved) {
-        do goto target:safety_point on: road_network;
+    reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
+        saved <- true;
+        safe_people <- safe_people + 1;
+        do die;
+    }
+    
+    // DIRECT MOVEMENT - same as spectators
+    reflex move_to_safety when: being_alerted and not (saved or drowned) {
+        do goto target: safety_point on: road_network speed: speed;
+    }
+    
+	// Rules
+    rule belief: not_alerted new_desire: watch strength: 1.0;
+    rule belief: alerted new_desire: escape strength: 2.0;
+    
+    // Plans ------------------------------------------------------------------------------------------
+    plan watching intention: watch {
+		// do nothing
+    }
+    
+    plan escape_danger intention: escape {
+    	// Movement now handled by reflex above
     }
     
     aspect default {
-        draw sphere(1#m) color: drowned ? #black : (alerted ? #red : #green);
-    }
-}
-
-// TODO: BDI agent
-species worker parent: person {
-    
-    init {
-        alerted <- true;  // Workers start alerted
-    }
-    
-    reflex evacuate when: alerted and not(drowned or saved) {
-        do goto target:safety_point on: road_network;
-    }
-    
-    aspect default {
-        draw sphere(1#m) color: drowned ? #black : (alerted ? #violet : #blue);
+        draw sphere(1#m) color: drowned ? #black : #blue;
     }
 }
 
@@ -175,15 +267,14 @@ species building {
 
 
 experiment "Run_Stadium" type:gui {
-	float minimum_cycle_duration <- 0.1;
-		
+	
 	// --- ADJUSTED PARAMETERS ---
-			
+	
 	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
 	
 	parameter "Number of Spectators" var:nb_of_spectators init:1000 min:0 max:20000 category:"Initialization";
-	parameter "Number of Workers" var:nb_of_workers init:5 min:0 max:200 category:"Initialization";
+	parameter "Number of Workers" var:nb_of_workers init:100 min:0 max:200 category:"Initialization";
 	
 	output {
 		display my_display type:3d axes:false{ 
