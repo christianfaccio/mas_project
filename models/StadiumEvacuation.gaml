@@ -37,7 +37,7 @@ global {
 	float flood_front_speed; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
-	file road_file <- file("../includes/paths.shp");
+	file road_file <- file("../includes/roads2.shp");
 	file buildings <- file("../includes/walls.shp");
 	file evac_points <- file("../includes/exits.shp");
 	// ---------------------------------------------
@@ -69,7 +69,6 @@ global {
 			safety_point <- evacuation_point closest_to(self);
 			perception_distance <- rnd(min_perception_distance, max_perception_distance);
 		}
-		//create crisis_manager;
 		
 		road_network <- as_edge_graph(road);
 		road_weights <- road as_map (each::each.shape.perimeter);
@@ -81,62 +80,6 @@ global {
 		do pause;
 	}
 	
-}
-
-// TODO: different strategy for hazard communication (for now only EVERYONE strategy)
-species crisis_manager {
-	
-	float alert_range;
-	int nb_per_stage;
-	geometry buffer;
-	float distance_buffer;
-	
-	init {
-		int modulo_stage <- (nb_of_spectators + nb_of_workers) mod nb_stages; 
-		nb_per_stage <- int((nb_of_spectators + nb_of_workers) / nb_stages) + (modulo_stage = 0 ? 0 : 1);
-		buffer <- geometry(evacuation_point collect (each.shape buffer 1#m));
-		distance_buffer <- world.shape.height / nb_stages;
-		alert_range <- (time_before_hazard#mn - time_after_last_stage#mn) / nb_stages;
-	}
-	
-	reflex send_alert when: alert_conditional() {
-		ask alert_spectators() { self.alerted <- true;}
-		ask alert_workers()  {self.alerted <- true;}
-	}
-	
-	bool alert_conditional {
-		if(the_alert_strategy = "STAGED" or the_alert_strategy = "SPATIAL"){
-			return every(alert_range);
-		} else {
-			if(cycle = 0){
-				return true;
-			} else {
-				return false;
-			}
-		}
-	}
-	
-	list<spectator> alert_spectators {
-		switch the_alert_strategy {
-			match "STAGED" {
-				return nb_per_stage among (spectator where (each.alerted = false));
-			}
-			match "SPATIAL" {
-				buffer <- buffer buffer distance_buffer;
-				return spectator overlapping buffer;
-			}
-			match "EVERYONE" {
-				return list(spectator);
-			}
-			default {
-				return [];
-			}
-		}
-	}
-	list<worker> alert_workers {
-		// workers are alerted at the same time and before spectators, such that they can alert the spectators around them
-		return list(worker);
-	}
 }
 
 // OK
@@ -209,8 +152,6 @@ species worker parent: person {
     init {
         alerted <- true;  // Workers start alerted
     }
-    
-    // Remove perceive reflex - workers don't need it
     
     reflex evacuate when: alerted and not(drowned or saved) {
         do goto target:safety_point on: road_network move_weights:road_weights;
@@ -285,7 +226,7 @@ experiment "Run_Stadium" type:gui {
 	parameter "Number of Stages" var:nb_stages init:6 category:"Alert";
 	parameter "Buffer Time (min)" var:time_after_last_stage init:2 unit:"min" category:"Alert";
 	
-	parameter "Path Density" var:road_density init:0.5 min:0.1 max:10.0 category:"Congestion";
+	parameter "Path Density" var:road_density init:4.0 min:0.1 max:10.0 category:"Congestion";
 	
 	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
