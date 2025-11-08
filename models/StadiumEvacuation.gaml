@@ -37,7 +37,7 @@ global {
 	float flood_front_speed; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
-	file road_file <- file("../includes/roads2.shp");
+	file road_file <- file("../includes/paths.shp");
 	file buildings <- file("../includes/walls.shp");
 	file evac_points <- file("../includes/exits.shp");
 	// ---------------------------------------------
