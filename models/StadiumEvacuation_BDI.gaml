@@ -17,7 +17,7 @@ global {
 	
 	// Perception distance
 	float min_perception_distance <- 10.0;
-	float max_perception_distance <- 10.0;
+	float max_perception_distance <- 100.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -25,11 +25,11 @@ global {
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
 	file road_file <- file("../includes/paths.shp");
-	file buildings <- file("../includes/walls.shp");
+	file buildings <- file("../includes/buildings.shp");
 	file evac_points <- file("../includes/exits.shp");
 	// ---------------------------------------------
 	
-	geometry shape <- envelope(envelope(road_file)+envelope(buildings)+envelope(evac_points));
+	geometry shape <- envelope(envelope(road_file) + envelope(buildings) envelope(evac_points));
 	
 	graph<geometry, geometry> road_network;
 	
@@ -169,7 +169,7 @@ species spectator skills:[moving] control: simple_bdi {
     }
     
     aspect default {
-        draw sphere(1#m) color: drowned ? #black : (has_belief(alerted) ? #orange : #red);
+        draw sphere(4#m) color: drowned ? #black : (has_belief(alerted) ? #orange : #red);
     }
 }
 
@@ -226,7 +226,7 @@ species worker skills: [moving] control: simple_bdi {
     }
     
     aspect default {
-        draw sphere(1#m) color: drowned ? #black : #blue;
+        draw sphere(4#m) color: drowned ? #black : #blue;
     }
 }
 
@@ -238,14 +238,14 @@ species evacuation_point {
 		
 	aspect default {
 		// Corrected transparency syntax (0-255, not 0-1)
-		draw circle(1#m+49#m*(count_exit_spectators + count_exit_workers)/(nb_of_spectators + nb_of_workers)) color: rgb(0, 255, 0, 180); // 180 is ~70% opacity
+		draw circle(4#m+49#m*(count_exit_spectators + count_exit_workers)/(nb_of_spectators + nb_of_workers)) color: rgb(0, 255, 0, 180); // 180 is ~70% opacity
 	}
 }
 
 // OK
 species road {
 	aspect default{
-		draw shape width: 4#m color:rgb(55,0,0);
+		draw shape width: 1#m color:rgb(55,0,0);
 	}	
 }
 
@@ -264,8 +264,8 @@ experiment "Run_Stadium" type:gui {
 	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
 	
-	parameter "Number of Spectators" var:nb_of_spectators init:10 min:0 max:20000 category:"Initialization";
-	parameter "Number of Workers" var:nb_of_workers init:2 min:0 max:200 category:"Initialization";
+	parameter "Number of Spectators" var:nb_of_spectators init:100 min:0 max:20000 category:"Initialization";
+	parameter "Number of Workers" var:nb_of_workers init:20 min:0 max:200 category:"Initialization";
 	
 	output {
 		display my_display type:3d axes:false{ 

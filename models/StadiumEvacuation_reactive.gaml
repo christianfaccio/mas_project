@@ -17,7 +17,7 @@ global {
 	
 	// Perception distance
 	float min_perception_distance <- 10.0;
-	float max_perception_distance <- 10.0;
+	float max_perception_distance <- 100.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -25,7 +25,7 @@ global {
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
 	file road_file <- file("../includes/paths.shp");
-	file buildings <- file("../includes/walls.shp");
+	file buildings <- file("../includes/buildings.shp");
 	file evac_points <- file("../includes/exits.shp");
 	// ---------------------------------------------
 	
@@ -172,7 +172,7 @@ species spectator skills:[moving] control: simple_bdi {
     }
     
     aspect default {
-        draw sphere(1#m) color: drowned ? #black : (being_alerted ? #orange : #red);
+        draw sphere(4#m) color: drowned ? #black : (being_alerted ? #orange : #red);
     }
 }
 
@@ -235,7 +235,7 @@ species worker skills: [moving] control: simple_bdi{
     }
     
     aspect default {
-        draw sphere(1#m) color: drowned ? #black : #blue;
+        draw sphere(4#m) color: drowned ? #black : #blue;
     }
 }
 
@@ -247,14 +247,14 @@ species evacuation_point {
 		
 	aspect default {
 		// Corrected transparency syntax (0-255, not 0-1)
-		draw circle(1#m+49#m*(count_exit_spectators + count_exit_workers)/(nb_of_spectators + nb_of_workers)) color: rgb(0, 255, 0, 180); // 180 is ~70% opacity
+		draw circle(20#m+49#m*(count_exit_spectators + count_exit_workers)/(nb_of_spectators + nb_of_workers)) color: rgb(0, 255, 0, 180); // 180 is ~70% opacity
 	}
 }
 
 // OK
 species road {
 	aspect default{
-		draw shape width: 4#m color:rgb(55,0,0);
+		draw shape width: 1#m color:rgb(55,0,0);
 	}	
 }
 
