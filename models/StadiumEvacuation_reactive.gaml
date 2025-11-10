@@ -17,7 +17,7 @@ global {
 	
 	// Perception distance
 	float min_perception_distance <- 10.0;
-	float max_perception_distance <- 100.0;
+	float max_perception_distance <- 20.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -99,6 +99,8 @@ species spectator skills:[moving] control: simple_bdi {
     float speed <- 5.0 #km / #h;
     evacuation_point safety_point;
     bool being_alerted <- false;
+    string role; // leader, follower, panic
+    
     
     // BELIEFS
     predicate not_alerted <- new_predicate("not_alerted");
@@ -112,6 +114,14 @@ species spectator skills:[moving] control: simple_bdi {
    	init {
    		do add_belief(not_alerted);
    		do add_desire(watch);
+	   	float r <- rnd(1.0);
+		    if (r < 0.10) {
+		        role <- "leader";
+		    } else if (r < 0.85) {
+		        role <- "follower";
+		    } else {
+		        role <- "panic";
+		    }
    	}
    	
    	// Reflexes ---------------------------------------------------------------------------------------
@@ -169,6 +179,27 @@ species spectator skills:[moving] control: simple_bdi {
    		speed <- speed * exp(-0.0005 * (nb_of_workers + nb_of_spectators) * n_people / 200);
    	}
    	
+   	reflex role_influence {
+	    list<spectator> nearby_spectators <- (spectator at_distance perception_distance) where (each != self);
+	
+	    // Leaders increasing speed
+	    if (role = "leader") {
+	        loop s over: nearby_spectators {
+	            s.speed <- s.speed * 1.05;
+	        }
+	    }
+	
+	    // Panic slowing speed
+	    if (role = "panic") {
+	        loop s over: nearby_spectators {
+	            s.speed <- s.speed * 0.95;
+	        }
+    }
+}
+   	
+   	
+   	
+   	
 	// Rules
     rule belief: not_alerted new_desire: watch strength: 1.0;
     rule belief: alerted new_desire: escape strength: 2.0;
@@ -183,8 +214,14 @@ species spectator skills:[moving] control: simple_bdi {
     }
     
     aspect default {
-        draw sphere(4#m) color: drowned ? #black : (being_alerted ? #orange : #red);
-    }
+		    rgb c <- drowned ? #black :
+		                 (role = "leader" ? #green :
+		                 (role = "panic" ? #yellow :
+		                 (being_alerted ? #orange : #red)));
+		
+		    draw sphere(4#m) color: c;
+	}
+    
 }
 
 species worker skills: [moving] control: simple_bdi{
