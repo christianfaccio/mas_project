@@ -16,8 +16,8 @@ global {
 	int nb_of_workers;
 	
 	// Perception distance
-	float min_perception_distance <- 10.0;
-	float max_perception_distance <- 20.0;
+	float min_perception_distance <- 1.0;
+	float max_perception_distance <- 5.0;
 	
 	// Hazard parameters
 	int time_before_hazard;
@@ -140,12 +140,10 @@ species spectator skills:[moving] control: simple_bdi {
         do die;
     }
     
-    // DIRECT MOVEMENT when alerted - bypassing BDI plan execution timing issue
     reflex move_to_safety when: being_alerted and not (saved or drowned) {
         do goto target: safety_point on: road_network speed: speed;
     }
     
-    // Perceptions
    	reflex perceive_alert when: not being_alerted {
    		// Check for nearby workers
    		list<worker> nearby_workers <- worker at_distance perception_distance;
@@ -176,29 +174,33 @@ species spectator skills:[moving] control: simple_bdi {
    		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
    		
    		int n_people <- length(nearby_workers) + length(nearby_spectators);
-   		speed <- speed * exp(-0.0005 * (nb_of_workers + nb_of_spectators) * n_people / 200);
+   		speed <- speed * (0.5 + 0.5 * exp(-0.01 * n_people));
    	}
    	
    	reflex role_influence {
 	    list<spectator> nearby_spectators <- (spectator at_distance perception_distance) where (each != self);
+	    list<worker> nearby_workers <- (worker at_distance perception_distance) where (each != self);
 	
 	    // Leaders increasing speed
 	    if (role = "leader") {
 	        loop s over: nearby_spectators {
-	            s.speed <- s.speed * 1.05;
+	            s.speed <- s.speed * 1.2;
+	        }
+	        loop s over: nearby_workers {
+	            s.speed <- s.speed * 1.2;
 	        }
 	    }
 	
 	    // Panic slowing speed
 	    if (role = "panic") {
 	        loop s over: nearby_spectators {
-	            s.speed <- s.speed * 0.95;
+	            s.speed <- s.speed * 0.8;
 	        }
-    }
-}
-   	
-   	
-   	
+	        loop s over: nearby_workers {
+	            s.speed <- s.speed * 0.8;
+	        }
+    	}
+	}
    	
 	// Rules
     rule belief: not_alerted new_desire: watch strength: 1.0;
@@ -214,12 +216,16 @@ species spectator skills:[moving] control: simple_bdi {
     }
     
     aspect default {
-		    rgb c <- drowned ? #black :
-		                 (role = "leader" ? #green :
-		                 (role = "panic" ? #yellow :
-		                 (being_alerted ? #orange : #red)));
+		    rgb c <- 	being_alerted ? #red : (role = "leader" ? #green :(role = "panic" ? #violet : #black));
+
 		
-		    draw sphere(4#m) color: c;
+		    if (role = "leader") {
+		    	draw square(12#m) color: c;
+		    } else if (role = "panic") {
+		    	draw triangle(12#m) color: c;
+		    } else {
+		    	draw circle(4#m) color: c;
+		    }
 	}
     
 }
@@ -232,6 +238,7 @@ species worker skills: [moving] control: simple_bdi{
     float speed <- 5.0 #km / #h;
     evacuation_point safety_point;
     bool being_alerted <- true;
+    string role <- "leader"; // always leader
     
     // BELIEFS
     predicate not_alerted <- new_predicate("not_alerted");
@@ -277,8 +284,21 @@ species worker skills: [moving] control: simple_bdi{
    		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
    		
    		int n_people <- length(nearby_workers) + length(nearby_spectators);
-   		speed <- speed * exp(-0.0003 * (nb_of_workers + nb_of_spectators) * n_people / 200);
+   		speed <- speed * (0.5 + 0.5 * exp(-0.01 * n_people));
    	}
+   	
+   	reflex role_influence {
+	    list<spectator> nearby_spectators <- (spectator at_distance perception_distance) where (each != self);
+	    list<worker> nearby_workers <- (worker at_distance perception_distance) where (each != self);
+	
+	    // Leaders increasing speed
+        loop s over: nearby_spectators {
+            s.speed <- s.speed * 1.2;
+        }
+        loop s over: nearby_workers {
+            s.speed <- s.speed * 1.2;
+        }
+	}
     
 	// Rules
     rule belief: not_alerted new_desire: watch strength: 1.0;
@@ -294,7 +314,7 @@ species worker skills: [moving] control: simple_bdi{
     }
     
     aspect default {
-        draw sphere(4#m) color: drowned ? #black : #blue;
+        draw sphere(8#m) color: #blue;
     }
 }
 
@@ -333,14 +353,13 @@ experiment "Run_Stadium" type:gui {
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
 	
 	parameter "Number of Spectators" var:nb_of_spectators init:500 min:0 max:20000 category:"Initialization";
-	parameter "Number of Workers" var:nb_of_workers init:100 min:0 max:200 category:"Initialization";
+	parameter "Number of Workers" var:nb_of_workers init:50 min:0 max:200 category:"Initialization";
 	
 	output {
 		display my_display type:3d axes:false{ 
-			// Draws the original species (NO SEATS)
 			species road;
 			species evacuation_point;
-			species building; // This will draw the WALLS
+			species building; 
 			species hazard ;
 			species spectator;
 			species worker;
