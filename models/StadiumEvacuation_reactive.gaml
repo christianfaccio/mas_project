@@ -158,6 +158,17 @@ species spectator skills:[moving] control: simple_bdi {
    		}
    	}
    	
+   	reflex modify_speed {
+   		// Check for nearby workers
+   		list<worker> nearby_workers <- worker at_distance perception_distance;
+   		
+   		// Check for nearby spectators
+   		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
+   		
+   		int n_people <- length(nearby_workers) + length(nearby_spectators);
+   		speed <- speed * exp(-0.0005 * (nb_of_workers + nb_of_spectators) * n_people / 200);
+   	}
+   	
 	// Rules
     rule belief: not_alerted new_desire: watch strength: 1.0;
     rule belief: alerted new_desire: escape strength: 2.0;
@@ -221,6 +232,17 @@ species worker skills: [moving] control: simple_bdi{
         do goto target: safety_point on: road_network speed: speed;
     }
     
+    reflex modify_speed {
+   		// Check for nearby workers
+   		list<worker> nearby_workers <- worker at_distance perception_distance;
+   		
+   		// Check for nearby spectators
+   		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
+   		
+   		int n_people <- length(nearby_workers) + length(nearby_spectators);
+   		speed <- speed * exp(-0.0003 * (nb_of_workers + nb_of_spectators) * n_people / 200);
+   	}
+    
 	// Rules
     rule belief: not_alerted new_desire: watch strength: 1.0;
     rule belief: alerted new_desire: escape strength: 2.0;
@@ -273,7 +295,7 @@ experiment "Run_Stadium" type:gui {
 	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
 	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
 	
-	parameter "Number of Spectators" var:nb_of_spectators init:1000 min:0 max:20000 category:"Initialization";
+	parameter "Number of Spectators" var:nb_of_spectators init:500 min:0 max:20000 category:"Initialization";
 	parameter "Number of Workers" var:nb_of_workers init:100 min:0 max:200 category:"Initialization";
 	
 	output {
