@@ -418,7 +418,7 @@ experiment "Run_Stadium" type:gui {
 }
 
 experiment "nb_workers vs nb_spectators" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 10 {
-	parameter "Tot people" var: tot_people min: 500 max: 2000 step: 100;
+	parameter "Tot people" var: tot_people min: 500 max: 1500 step: 100;
 	parameter "Workers/Spectators" var: workers_over_spectators min: 0.1 max: 0.9 step: 0.1;
 	
 	reflex save_results {
