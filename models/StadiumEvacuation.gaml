@@ -21,7 +21,9 @@ global {
 	float min_perception_distance <- 1.0;
 	float max_perception_distance <- 5.0;
 	
-	float speed <- 5 #m/#mn;
+	float speed_ratio <- 2.0; // hazard_speed / people_speed
+	
+	float speed <- 5.0 #m/#mn;
 	float exp_weight <- 0.01;
 	float perc_increase <- 0.2;
 	
@@ -30,7 +32,7 @@ global {
 	
 	// Hazard parameters
 	int time_before_hazard <- 1; // (min)
-	float flood_front_speed <- 10.0; // Speed of hazard expansion (m/min)
+	float flood_front_speed <- speed * speed_ratio; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
 	file road_file <- file("../includes/paths.shp");
@@ -424,9 +426,171 @@ experiment "nb_workers vs nb_spectators" type: batch until: spectator all_match 
 	
 	reflex save_results {
 		ask simulations {
-			save 
+			save [	tot_people,
+					workers_over_spectators,
+					nb_of_spectators,
+					nb_of_workers,
+					min_perception_distance,
+					max_perception_distance,
+					speed,
+					speed_ratio,
+					time_before_hazard,
+					leader_frac,
+					follower_frac,
+					tot_victims, 
+					tot_saved_people,
+					tot_spectators_victims,
+					tot_spectators_saved,	
+					tot_workers_victims,
+					tot_workers_saved,
+					tot_leaders_victims,
+					tot_leaders_saved,
+					tot_followers_victims,
+					tot_followers_saved,
+					tot_panic_victims,
+					tot_panic_saved
+				]
 			to: "../analysis/results/1.csv" format: "csv" rewrite: false;
 		}
 	}
 }
 
+experiment "Perception Distance" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+	parameter "Min perception distance" var: min_perception_distance min: 1.0 max: 5.0 step: 1.0;
+	parameter "Max perception distance" var: max_perception_distance min: 10.0 max: 15.0 step: 1.0;
+	
+	reflex save_results {
+		ask simulations {
+			save [	tot_people,
+					workers_over_spectators,
+					nb_of_spectators,
+					nb_of_workers,
+					min_perception_distance,
+					max_perception_distance,
+					speed,
+					speed_ratio,
+					time_before_hazard,
+					leader_frac,
+					follower_frac,
+					tot_victims, 
+					tot_saved_people,
+					tot_spectators_victims,
+					tot_spectators_saved,	
+					tot_workers_victims,
+					tot_workers_saved,
+					tot_leaders_victims,
+					tot_leaders_saved,
+					tot_followers_victims,
+					tot_followers_saved,
+					tot_panic_victims,
+					tot_panic_saved
+				]
+			to: "../analysis/results/2.csv" format: "csv" rewrite: false;
+		}
+	}
+}
+
+experiment "Speed people vs Speed hazard ratio" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+	parameter "Speed people" var: speed min: 1.0 max: 10.0 step: 1.0;
+	parameter "Speed ratio" var: speed_ratio min: 2.0 max: 5.0 step: 0.5;
+	
+	reflex save_results {
+		ask simulations {
+			save [	tot_people,
+					workers_over_spectators,
+					nb_of_spectators,
+					nb_of_workers,
+					min_perception_distance,
+					max_perception_distance,
+					speed,
+					speed_ratio,
+					time_before_hazard,
+					leader_frac,
+					follower_frac,
+					tot_victims, 
+					tot_saved_people,
+					tot_spectators_victims,
+					tot_spectators_saved,	
+					tot_workers_victims,
+					tot_workers_saved,
+					tot_leaders_victims,
+					tot_leaders_saved,
+					tot_followers_victims,
+					tot_followers_saved,
+					tot_panic_victims,
+					tot_panic_saved
+				]
+			to: "../analysis/results/3.csv" format: "csv" rewrite: false;
+		}
+	}
+}
+
+experiment "Spectator type %" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+	parameter "Leader %" var: leader_frac min: 0.1 max: 0.5 step: 0.1;
+	parameter "Follower %" var: follower_frac min: 0.1 max: 0.5 step: 0.1;
+	
+	reflex save_results {
+		ask simulations {
+			save [	tot_people,
+					workers_over_spectators,
+					nb_of_spectators,
+					nb_of_workers,
+					min_perception_distance,
+					max_perception_distance,
+					speed,
+					speed_ratio,
+					time_before_hazard,
+					leader_frac,
+					follower_frac,
+					tot_victims, 
+					tot_saved_people,
+					tot_spectators_victims,
+					tot_spectators_saved,	
+					tot_workers_victims,
+					tot_workers_saved,
+					tot_leaders_victims,
+					tot_leaders_saved,
+					tot_followers_victims,
+					tot_followers_saved,
+					tot_panic_victims,
+					tot_panic_saved
+				]
+			to: "../analysis/results/4.csv" format: "csv" rewrite: false;
+		}
+	}
+}
+
+experiment "Hazard params" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+	parameter "Time before hazard" var: time_before_hazard min: 1 max: 10 step: 1;
+	parameter "Speed ratio" var: speed_ratio min: 0.5 max: 3.0 step: 0.5;
+	
+	reflex save_results {
+		ask simulations {
+			save [	tot_people,
+					workers_over_spectators,
+					nb_of_spectators,
+					nb_of_workers,
+					min_perception_distance,
+					max_perception_distance,
+					speed,
+					speed_ratio,
+					time_before_hazard,
+					leader_frac,
+					follower_frac,
+					tot_victims, 
+					tot_saved_people,
+					tot_spectators_victims,
+					tot_spectators_saved,	
+					tot_workers_victims,
+					tot_workers_saved,
+					tot_leaders_victims,
+					tot_leaders_saved,
+					tot_followers_victims,
+					tot_followers_saved,
+					tot_panic_victims,
+					tot_panic_saved
+				]
+			to: "../analysis/results/5.csv" format: "csv" rewrite: false;
+		}
+	}
+}
