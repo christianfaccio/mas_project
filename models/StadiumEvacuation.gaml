@@ -13,8 +13,10 @@ model StadiumEvacuation
 global {
 	
 	// People parameters
-	int nb_of_spectators <- 500;
-	int nb_of_workers <- 50;
+	float workers_over_spectators <- 0.1; // ex. 2 workers per 8 spectators
+	int tot_people <- 500;
+	int nb_of_spectators <- int((1 / (1 + workers_over_spectators)) * tot_people);
+	int nb_of_workers <- tot_people - nb_of_spectators;
 	
 	float min_perception_distance <- 1.0;
 	float max_perception_distance <- 5.0;
@@ -27,7 +29,7 @@ global {
 	float follower_frac <- 0.75;
 	
 	// Hazard parameters
-	int time_before_hazard <- 1;
+	int time_before_hazard <- 1; // (min)
 	float flood_front_speed <- 10.0; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
@@ -41,8 +43,18 @@ global {
 	graph<geometry, geometry> road_network;
 	
 	// Data output
-	int victims;
-	int safe_people;
+	int tot_victims;
+	int tot_saved_people;
+	int tot_spectators_victims;
+	int tot_spectators_saved;
+	int tot_workers_victims;
+	int tot_workers_saved;
+	int tot_leaders_victims;
+	int tot_leaders_saved;
+	int tot_followers_victims;
+	int tot_followers_saved;
+	int tot_panic_victims;
+	int tot_panic_saved;
 	
 	
 	init {
@@ -134,18 +146,40 @@ species spectator skills:[moving] control: simple_bdi {
    	// Reflexes ---------------------------------------------------------------------------------------
     
     reflex drown when:not(drowned or saved) {
-        if(first(hazard) covers self){
-            drowned <- true;
-            victims <- victims + 1; 
-            do die;
-        }
-    }
-    
-    reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
-        saved <- true;
-        safe_people <- safe_people + 1;
-        do die;
-    }
+	    if(first(hazard) covers self){
+	        drowned <- true;
+	        tot_victims <- tot_victims + 1;
+	        tot_spectators_victims <- tot_spectators_victims + 1;
+	        
+	        // Count by role
+	        if (role = "leader") {
+	            tot_leaders_victims <- tot_leaders_victims + 1;
+	        } else if (role = "follower") {
+	            tot_followers_victims <- tot_followers_victims + 1;
+	        } else if (role = "panic") {
+	            tot_panic_victims <- tot_panic_victims + 1;
+	        }
+	        
+	        do die;
+	    }
+	}
+
+	reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
+	    saved <- true;
+	    tot_saved_people <- tot_saved_people + 1;
+	    tot_spectators_saved <- tot_spectators_saved + 1;
+	    
+	    // Count by role
+	    if (role = "leader") {
+	        tot_leaders_saved <- tot_leaders_saved + 1;
+	    } else if (role = "follower") {
+	        tot_followers_saved <- tot_followers_saved + 1;
+	    } else if (role = "panic") {
+	        tot_panic_saved <- tot_panic_saved + 1;
+	    }
+	    
+	    do die;
+	}
     
     reflex move_to_safety when: being_alerted and not (saved or drowned) {
         do goto target: safety_point on: road_network speed: speed;
@@ -264,18 +298,20 @@ species worker skills: [moving] control: simple_bdi{
    	// Reflexes ---------------------------------------------------------------------------------------
     
     reflex drown when:not(drowned or saved) {
-        if(first(hazard) covers self){
-            drowned <- true;
-            victims <- victims + 1; 
-            do die;
-        }
-    }
-    
-    reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
-        saved <- true;
-        safe_people <- safe_people + 1;
-        do die;
-    }
+	    if(first(hazard) covers self){
+	        drowned <- true;
+	        tot_victims <- tot_victims + 1;
+	        tot_workers_victims <- tot_workers_victims + 1;
+	        do die;
+	    }
+	}
+
+	reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
+	    saved <- true;
+	    tot_saved_people <- tot_saved_people + 1;
+	    tot_workers_saved <- tot_workers_saved + 1;
+	    do die;
+	}
     
     // DIRECT MOVEMENT - same as spectators
     reflex move_to_safety when: being_alerted and not (saved or drowned) {
@@ -352,17 +388,45 @@ species building {
 
 
 experiment "Run_Stadium" type:gui {
-	output {
-		display my_display type:3d axes:false{ 
-			species road;
-			species evacuation_point;
-			species building; 
-			species hazard ;
-			species spectator;
-			species worker;
+    output {
+        display my_display type:3d axes:false{ 
+            species road;
+            species evacuation_point;
+            species building; 
+            species hazard ;
+            species spectator;
+            species worker;
+        }
+        
+        // Overall statistics
+        monitor "Number of Saved people: " value: tot_saved_people; 
+        monitor "Number of Victims: " value: tot_victims;
+        
+        // Spectators vs Workers
+        monitor "Spectators Saved: " value: tot_spectators_saved;
+        monitor "Spectators Victims: " value: tot_spectators_victims;
+        monitor "Workers Saved: " value: tot_workers_saved;
+        monitor "Workers Victims: " value: tot_workers_victims;
+        
+        // Role breakdown
+        monitor "Leaders Saved: " value: tot_leaders_saved;
+        monitor "Leaders Victims: " value: tot_leaders_victims;
+        monitor "Followers Saved: " value: tot_followers_saved;
+        monitor "Followers Victims: " value: tot_followers_victims;
+        monitor "Panic Saved: " value: tot_panic_saved;
+        monitor "Panic Victims: " value: tot_panic_victims;
+    }    
+}
+
+experiment "nb_workers vs nb_spectators" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+	parameter "Tot people" var: tot_people min: 500 max: 2000 step: 100;
+	parameter "Workers/Spectators" var: workers_over_spectators min: 0.1 max 0.9 step: 0.1;
+	
+	reflex save_results {
+		ask simulations {
+			save 
+			to: "../analysis/results/1.csv" format: "csv" rewrite: false;
 		}
-		monitor "Number of Saved people: " value: safe_people; 
-		monitor "Number of Victims: " value:victims;
-	}	
+	}
 }
 
