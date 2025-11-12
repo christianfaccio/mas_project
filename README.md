@@ -7,3 +7,7 @@ The objectives include spotting bottlenecks in stadium emergency exits, analyzin
 </div>
 
 ---
+
+<div align="center">
+   <img src="report/images/snapshot.png" alt="Snapshot">
+</div>

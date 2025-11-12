@@ -1,10 +1,12 @@
 /***
 * Name: StadiumEvacuation
-* Author: kevinchapuis (Adapted for stadium)
-* Description: A model for stadium evacuation. REUSES the species from CityEscape.
-* The map is defined by WALLS (loaded as 'building') and STADIUM_PATHS (loaded as 'road').
-* The 'inhabitant' (spectators) are created ON the 'road' (paths) and must
-* reach the 'evacuation_point' (exits).
+* Authors: Christian Faccio, Javier Arribas González, Luis Bernabeu Agüeria, Imanol Jurado Martínez, Bruno Sancho Deltell
+* Description: Our project focuses on the simulation and analysis of crowd evacuation behavior and dynamics during sporting 
+* events using agent-based modelling. Each agent represents an individual spectator with autonomous decision-making 
+* capabilities, potentially including more sophisticated dynamics like stadium geometry or police agents. 
+* The objectives include spotting bottlenecks in stadium emergency exits, analyzing crowd behavior to better improve 
+* stadiums' geometry and evaluate how factors like staff guidance and crowd management protocols impact evacuation 
+* efficiency and safety.
 * Tags: evacuation, stadium, crowd, agent, gis, hazard
 ***/
 model StadiumEvacuation
@@ -23,7 +25,8 @@ global {
 	
 	float speed_ratio <- 2.0; // hazard_speed / people_speed
 	
-	float speed <- 5.0 #m/#mn;
+	float abs_speed <- 5.0;
+	float speed <- abs_speed #m/#mn;
 	float exp_weight <- 0.01;
 	float perc_increase <- 0.2;
 	
@@ -32,7 +35,7 @@ global {
 	
 	// Hazard parameters
 	int time_before_hazard <- 1; // (min)
-	float flood_front_speed <- speed * speed_ratio; // Speed of hazard expansion (m/min)
+	float flood_front_speed <- abs_speed * speed_ratio; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
 	file road_file <- file("../includes/paths.shp");
@@ -491,7 +494,7 @@ experiment "Perception Distance" type: batch until: spectator all_match (each.sa
 }
 
 experiment "Speed people vs Speed hazard ratio" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
-	parameter "Speed people" var: speed min: 1.0 max: 10.0 step: 1.0;
+	parameter "Speed people" var: abs_speed min: 1.0 max: 10.0 step: 1.0;
 	parameter "Speed ratio" var: speed_ratio min: 2.0 max: 5.0 step: 0.5;
 	
 	reflex save_results {
