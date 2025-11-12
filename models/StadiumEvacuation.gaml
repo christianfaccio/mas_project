@@ -34,7 +34,6 @@ global {
 	float follower_frac <- 0.75;
 	
 	// Hazard parameters
-	int time_before_hazard <- 1; // (min)
 	float flood_front_speed <- abs_speed * speed_ratio; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
@@ -99,13 +98,8 @@ species hazard {
 	date catastrophe_date;
 	bool triggered;
 	
-	init {
-		catastrophe_date <- current_date + time_before_hazard#mn;
-	}
-	
-	reflex expand when:catastrophe_date < current_date {
+	reflex expand {
 		if(not(triggered)) {triggered <- true;}
-		// Uses the original variable 'flood_front_speed'
 		shape <- shape buffer (flood_front_speed#m/#mn * step) intersection world;
 	}
 	
@@ -423,9 +417,9 @@ experiment "Run_Stadium" type:gui {
     }    
 }
 
-experiment "nb_workers vs nb_spectators" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+experiment "nb_workers vs nb_spectators" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 10 {
 	parameter "Tot people" var: tot_people min: 500 max: 2000 step: 100;
-	parameter "Workers/Spectators" var: workers_over_spectators min: 0.1 max 0.9 step: 0.1;
+	parameter "Workers/Spectators" var: workers_over_spectators min: 0.1 max: 0.9 step: 0.1;
 	
 	reflex save_results {
 		ask simulations {
@@ -437,7 +431,6 @@ experiment "nb_workers vs nb_spectators" type: batch until: spectator all_match 
 					max_perception_distance,
 					speed,
 					speed_ratio,
-					time_before_hazard,
 					leader_frac,
 					follower_frac,
 					tot_victims, 
@@ -458,7 +451,7 @@ experiment "nb_workers vs nb_spectators" type: batch until: spectator all_match 
 	}
 }
 
-experiment "Perception Distance" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+experiment "Perception Distance" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 20 {
 	parameter "Min perception distance" var: min_perception_distance min: 1.0 max: 5.0 step: 1.0;
 	parameter "Max perception distance" var: max_perception_distance min: 10.0 max: 15.0 step: 1.0;
 	
@@ -472,7 +465,6 @@ experiment "Perception Distance" type: batch until: spectator all_match (each.sa
 					max_perception_distance,
 					speed,
 					speed_ratio,
-					time_before_hazard,
 					leader_frac,
 					follower_frac,
 					tot_victims, 
@@ -493,7 +485,7 @@ experiment "Perception Distance" type: batch until: spectator all_match (each.sa
 	}
 }
 
-experiment "Speed people vs Speed hazard ratio" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+experiment "Speed people vs Speed hazard ratio" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 20 {
 	parameter "Speed people" var: abs_speed min: 1.0 max: 10.0 step: 1.0;
 	parameter "Speed ratio" var: speed_ratio min: 2.0 max: 5.0 step: 0.5;
 	
@@ -507,7 +499,6 @@ experiment "Speed people vs Speed hazard ratio" type: batch until: spectator all
 					max_perception_distance,
 					speed,
 					speed_ratio,
-					time_before_hazard,
 					leader_frac,
 					follower_frac,
 					tot_victims, 
@@ -528,7 +519,7 @@ experiment "Speed people vs Speed hazard ratio" type: batch until: spectator all
 	}
 }
 
-experiment "Spectator type %" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
+experiment "Spectator type %" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 20 {
 	parameter "Leader %" var: leader_frac min: 0.1 max: 0.5 step: 0.1;
 	parameter "Follower %" var: follower_frac min: 0.1 max: 0.5 step: 0.1;
 	
@@ -542,7 +533,6 @@ experiment "Spectator type %" type: batch until: spectator all_match (each.saved
 					max_perception_distance,
 					speed,
 					speed_ratio,
-					time_before_hazard,
 					leader_frac,
 					follower_frac,
 					tot_victims, 
@@ -563,9 +553,9 @@ experiment "Spectator type %" type: batch until: spectator all_match (each.saved
 	}
 }
 
-experiment "Hazard params" type: batch until: spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned) repeat: 20 {
-	parameter "Time before hazard" var: time_before_hazard min: 1 max: 10 step: 1;
-	parameter "Speed ratio" var: speed_ratio min: 0.5 max: 3.0 step: 0.5;
+
+experiment "Tot people var" type: batch until: (spectator all_match (each.saved or each.drowned) and worker all_match (each.saved or each.drowned)) or cycle > 1000 repeat: 20 {
+	parameter "Tot people" var: tot_people min: 500 max: 2000 step: 50;
 	
 	reflex save_results {
 		ask simulations {
@@ -577,7 +567,6 @@ experiment "Hazard params" type: batch until: spectator all_match (each.saved or
 					max_perception_distance,
 					speed,
 					speed_ratio,
-					time_before_hazard,
 					leader_frac,
 					follower_frac,
 					tot_victims, 
@@ -597,3 +586,4 @@ experiment "Hazard params" type: batch until: spectator all_match (each.saved or
 		}
 	}
 }
+
