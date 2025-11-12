@@ -12,16 +12,23 @@ model StadiumEvacuation
 // OK
 global {
 	
-	int nb_of_spectators;
-	int nb_of_workers;
+	// People parameters
+	int nb_of_spectators <- 500;
+	int nb_of_workers <- 50;
 	
-	// Perception distance
 	float min_perception_distance <- 1.0;
 	float max_perception_distance <- 5.0;
 	
+	float speed <- 5 #m/#mn;
+	float exp_weight <- 0.01;
+	float perc_increase <- 0.2;
+	
+	float leader_frac <- 0.1;
+	float follower_frac <- 0.75;
+	
 	// Hazard parameters
-	int time_before_hazard;
-	float flood_front_speed; // Speed of hazard expansion (m/min)
+	int time_before_hazard <- 1;
+	float flood_front_speed <- 10.0; // Speed of hazard expansion (m/min)
 	
 	// --- GIS FILE PATHS FOR THE STADIUM ---
 	file road_file <- file("../includes/paths.shp");
@@ -96,7 +103,6 @@ species spectator skills:[moving] control: simple_bdi {
 	bool drowned;
     bool saved;
     float perception_distance;
-    float speed <- 5.0 #km / #h;
     evacuation_point safety_point;
     bool being_alerted <- false;
     string role; // leader, follower, panic
@@ -115,12 +121,13 @@ species spectator skills:[moving] control: simple_bdi {
    		do add_belief(not_alerted);
    		do add_desire(watch);
 	   	float r <- rnd(1.0);
-		    if (r < 0.10) {
+		    if (r < leader_frac) {
 		        role <- "leader";
-		    } else if (r < 0.85) {
+		    } else if (r < (leader_frac + follower_frac)) {
 		        role <- "follower";
 		    } else {
 		        role <- "panic";
+		        perception_distance <- 1.0;
 		    }
    	}
    	
@@ -174,7 +181,7 @@ species spectator skills:[moving] control: simple_bdi {
    		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
    		
    		int n_people <- length(nearby_workers) + length(nearby_spectators);
-   		speed <- speed * (0.5 + 0.5 * exp(-0.01 * n_people));
+   		speed <- speed * (0.5 + 0.5 * exp(-exp_weight * n_people));
    	}
    	
    	reflex role_influence {
@@ -184,20 +191,20 @@ species spectator skills:[moving] control: simple_bdi {
 	    // Leaders increasing speed
 	    if (role = "leader") {
 	        loop s over: nearby_spectators {
-	            s.speed <- s.speed * 1.2;
+	            s.speed <- s.speed * (1.0 + perc_increase);
 	        }
 	        loop s over: nearby_workers {
-	            s.speed <- s.speed * 1.2;
+	            s.speed <- s.speed * (1.0 + perc_increase);
 	        }
 	    }
 	
 	    // Panic slowing speed
 	    if (role = "panic") {
 	        loop s over: nearby_spectators {
-	            s.speed <- s.speed * 0.8;
+	            s.speed <- s.speed * (1.0 - perc_increase);
 	        }
 	        loop s over: nearby_workers {
-	            s.speed <- s.speed * 0.8;
+	            s.speed <- s.speed * (1.0 - perc_increase);
 	        }
     	}
 	}
@@ -212,11 +219,11 @@ species spectator skills:[moving] control: simple_bdi {
     }
     
     plan escape_danger intention: escape {
-    	// Movement now handled by reflex above
+    	// Movement handled by reflex above
     }
     
     aspect default {
-		    rgb c <- 	being_alerted ? #red : (role = "leader" ? #green :(role = "panic" ? #violet : #black));
+		    rgb c <- being_alerted ? #red : (role = "leader" ? #green :(role = "panic" ? #violet : #black));
 
 		
 		    if (role = "leader") {
@@ -235,7 +242,6 @@ species worker skills: [moving] control: simple_bdi{
 	bool drowned;
     bool saved;
     float perception_distance;
-    float speed <- 5.0 #km / #h;
     evacuation_point safety_point;
     bool being_alerted <- true;
     string role <- "leader"; // always leader
@@ -284,7 +290,7 @@ species worker skills: [moving] control: simple_bdi{
    		list<spectator> nearby_spectators <- spectator at_distance perception_distance;
    		
    		int n_people <- length(nearby_workers) + length(nearby_spectators);
-   		speed <- speed * (0.5 + 0.5 * exp(-0.01 * n_people));
+   		speed <- speed * (0.5 + 0.5 * exp(-exp_weight * n_people));
    	}
    	
    	reflex role_influence {
@@ -293,10 +299,10 @@ species worker skills: [moving] control: simple_bdi{
 	
 	    // Leaders increasing speed
         loop s over: nearby_spectators {
-            s.speed <- s.speed * 1.2;
+            s.speed <- s.speed * (1.0 + perc_increase);
         }
         loop s over: nearby_workers {
-            s.speed <- s.speed * 1.2;
+            s.speed <- s.speed * (1.0 + perc_increase);
         }
 	}
     
@@ -346,15 +352,6 @@ species building {
 
 
 experiment "Run_Stadium" type:gui {
-	
-	// --- ADJUSTED PARAMETERS ---
-	
-	parameter "Hazard Speed (m/min)" var:flood_front_speed init:10.0 min:1.0 max:30.0 unit:"m/min" category:"Hazard";
-	parameter "Time Before Hazard (min)" var:time_before_hazard init:1 min:0 max:10 unit:"min" category:"Hazard";
-	
-	parameter "Number of Spectators" var:nb_of_spectators init:500 min:0 max:20000 category:"Initialization";
-	parameter "Number of Workers" var:nb_of_workers init:50 min:0 max:200 category:"Initialization";
-	
 	output {
 		display my_display type:3d axes:false{ 
 			species road;
@@ -367,5 +364,5 @@ experiment "Run_Stadium" type:gui {
 		monitor "Number of Saved people: " value: safe_people; 
 		monitor "Number of Victims: " value:victims;
 	}	
-	
 }
+
