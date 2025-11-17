@@ -2,6 +2,7 @@
 %
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
+\usepackage{caption}
 \usepackage{listings}
 \lstset{
     basicstyle=\ttfamily,
@@ -193,6 +194,118 @@ Visually displayed as a semi-transparent red area, the hazard expands continuous
 
 \section{Experiments}
 
+\subsection*{1: Impact of Worker to Spectator Ratio on Evacuation Success}
+
+This experiment takes into consideration two parameters:
+\begin{itemize}
+    \item Total number of people;
+    \item Worker over Spectator ratio.
+\end{itemize}
+
+A batch simulation was configured in GAMA to test these parameters for a range of values (from $500$ to $1500$ for total people, and from $0.2$ to $1.0$ for worker over spectator ratio), with $10$ repetitions for each combination of parameters. The main metric tracked was the overall survival rate, calculated as the percentage of people who managed to evacuate successfully. As shown in Fig.\ref{fig:exp1_1}, as the total number of people increases, we should introduce more workers to have a good survival rate. That is quite intuitive, but with a simulation like this we can estimate both the required number of workers and the expected survival rate for each configuration. 
+
+\begin{figure}{h}
+\centering  
+\includegraphics[width=0.9\textwidth]{../analysis/output/1.2.png}
+\captionof{figure}{Figure shows evacuation simulation results across varying population sizes (500-1500 people) and worker-to-spectator ratios (0.2-1.0). (a) Survival rate increases with worker ratio across all population sizes, with smaller populations showing steeper improvements. (b) Larger populations generally achieve higher survival rates, particularly at higher worker ratios. (c) Contour map reveals optimal configurations in the upper-right region (high worker ratios, larger populations). (d) Best-performing scenarios cluster around high worker ratios (0.8-1.0) with populations of 1000-1500, achieving $95-98\%$ survival rates, while worst performers show low worker ratios (0.2-0.3) with 500-600 people, achieving only $52-58\%$ survival.}
+\label{fig:exp1_1}
+\end{figure}
+
+Moreover, we can inspect the results in more detail, considering the sub-categories of the spectators and dividing between spectators and workers. As shown in Fig.\ref{fig:exp1_2}, overall the results are consistent with the previous analysis, but we can see that workers always have a better survival rate than spectators, which is expected since they are trained for these situations. Leaders also have a better survival rate than followers, which is also expected since they are the first to react to the hazard. Panic agents have the worst survival rate, but their impact on the overall survival is limited since they represent a small fraction of the population. At the end, given these results, we should focus on reducing the number of panic people since they are the ones that most negatively impact the overall survival rate.
+
+\begin{figure}{h}
+\centering  
+\includegraphics[width=0.9\textwidth]{../analysis/output/1.1.png}
+\captionof{figure}{Figure shows normalized evacuation outcomes as survival rates (\%) across population sizes (500-1500) and worker-to-spectator ratios (0.2-1.0). (a) Overall survival rate improves from $\approx 57\%$ to $\approx 97\%$ as worker ratio increases, with best performance at higher populations and ratios. (b) Leaders consistently achieve $60-75\%$ survival across configurations. (c) Followers show $55-75\%$ survival, improving significantly with higher worker ratios. (d) Panic agents represent $5-10\%$ of total population saved, decreasing slightly with higher worker ratios. (e) Spectator survival mirrors overall trends ($55-90\%$), improving with worker ratio and population size. (f) Workers consistently achieve $60-98\%$ survival, with dramatic improvements at higher ratios, demonstrating their trained advantage.}
+\label{fig:exp1_2}
+\end{figure}
+
+\subsection*{2: Analysis of Max Perception Distance}
+
+This experiment was designed to quantify the impact of the parameter \newline \texttt{max\_perception\_distance} on evacuation outcomes. A batch simulation was configured to test this parameter across a range from $200.0$ to $1200.0$, with $20$ repetitions per $100.0$-unit step. The primary metrics tracked were the mean overall survival rate, the standard deviation of survival (to measure variability), the mean number of panic victims, and the mean survival rate of agents who entered a panic state.
+
+The results indicate a complex and non-linear relationship between perception distance and overall survival. Mean survival was lowest at minimal perception distances ($\approx 45\%$ at $200-400$), suggesting a baseline inability to locate exits. A significant improvement occurred at $500.0$ ($59.8\%$ mean survival), with a general performance peak observed between $600.0$ and $800.0$ ($63-64\%$). Notably, the trend was not linear; after a dip, the highest mean survival was recorded at $1100.0$ ($71.1\%$), which was immediately followed by a sharp performance drop at $1200.0$ ($47.5\%$). A critical finding across all settings was the high standard deviation ($18-26\%$), indicating that outcomes are highly stochastic and variable, even with identical parameters.
+
+\begin{figure}
+\centering  
+\includegraphics[width=0.7\textwidth]{../analysis/output/2.png}
+\captionof{figure}{Mean overall survival rate (\texttt{survival\_mean}) and standard deviation (\texttt{survival\_std}) across varying \texttt{max\_perception\_distance} values (200.0-1200.0).}
+\label{fig:exp2}
+\end{figure}
+
+The analysis of panic-related metrics provided distinct insights. First, the mean number of panic victims (\texttt{panic\_victims\_mean}) remained relatively low and showed no clear correlation with perception distance, fluctuating between $3.0$ and $7.8$. This suggests that perception distance does not significantly influence the likelihood of an agent panicking. However, the \texttt{panic\_survival\_mean} (the survival rate of panicked agents) showed a clear positive trend. At low distances ($200-300$), panicked agents had a $78-85\%$ survival rate, which improved to a consistent $88-93\%$ at distances of $500.0$ and above. This implies that while increased perception doesn't prevent panic, it substantially improves the chances of survival for those who do.
+
+\subsection*{3: Interaction of Agent Speed and Hazard Spread Rate}
+
+This experiment evaluates how evacuation performance in the StadiumEvacuation model is affected by the interaction between human mobility and the speed at which the hazard spreads. The experiment systematically varies two key parameters: \texttt{Speed People} (ranging from $1.0$ to $10.0$) and \texttt{Speed Ratio} ($2.0$ to $5.0$, representing how many times faster the hazard expands compared to the agents). Each parameter combination is repeated 20 times,. This design provides a robust sensitivity analysis of how physical mobility and hazard pressure jointly determine evacuation outcomes.
+
+For every simulation run, the model records the total number of victims and the number of people successfully evacuated. These outputs are averaged for each pair of parameter values and visualized through two heatmaps. The first heatmap displays the average number of saved individuals depending on the two parameters.
+
+\vspace{0.5cm}
+
+\begin{minipage}{0.45\textwidth}
+\includegraphics[width=\textwidth]{../analysis/output/3.1.png}
+\captionof{figure}{Heatmap showing the average number of saved individuals based on Speed People and Speed Ratio parameters.}
+\end{minipage}
+\hfill 
+\begin{minipage}{0.45\textwidth}
+\includegraphics[width=\textwidth]{../analysis/output/3.2.png}
+\captionof{figure}{Heatmap showing the average number of victims based on Speed People and Speed Ratio parameters.}
+\end{minipage}
+
+\vspace{0.5cm}
+
+The second heatmap summarizes the average number of victims for the same parameter combinations. 
+Together, these visualizations reveal clear interaction effects: higher agent speed consistently increases survival, while higher hazard speed drastically amplifies casualties, especially when the hazard outruns slower-moving spectators.
+Overall, the experiment demonstrates that evacuation efficiency is dominated not by absolute speed alone, but by the relative speed between agents and hazard. When Speed People grows faster than Speed Ratio, the system experiences significantly fewer victims, whereas the opposite scenario produces a rapid rise in casualties. These results confirm that both the behavioral rules of the agents and the physical expansion rate of the hazard jointly determine the system’s resilience.
+
+\subsection*{4: Role Composition Impact on Evacuation Efficiency}
+
+This experiment evaluates how the composition of the spectator population impacts evacuation outcomes. The objective is to quantify the relationship between the presence of agents with Leader and Follower roles and the overall efficiency of the evacuation, measured in survivors and victims.
+
+For this analysis, the experiment varies two key parameters:
+\begin{itemize}
+    \item The fraction of \textbf{Leaders} in the population, ranging from $0.0$ to $0.5$ in increments of $0.1$;
+    \item The fraction of \textbf{Followers} in the population, ranging from $0.0$ to $0.5$ in increments of $0.1$;
+\end{itemize}
+
+Each unique parameter combination is repeated 20 times, with the objective of mitigating the impact of random factors, such as the initial positions of the agents.
+In each simulation, the total number of victims and the total number of evacuated people were recorded. The averaged results from all runs are visualized through two heatmaps showing the average number of people evacuated and the average number of total victims.
+
+These heatmaps show how evacuation efficiency does not depend on a single role, but on the strong synergy between the percentage of leaders and followers. A scenario with a high percentage of both roles is drastically safer than one with a high percentage of just one role, and both are immensely superior to a scenario with no social organization.
+The worst-case scenario is observed in the bottom-left corner (Leader Fraction $= 0.1$, Follower Fraction $= 0.1$), where the lack of coordinated social guidance is catastrophic. This represents a disorganized crowd that suffers the worst consequences, reaching a maximum of $77.4$ victims and a minimum of only $38.1$ survivors.
+
+On the other hand, the optimal result is found in the upper-right corner of the map (Leader Fraction $> 0.3$, Follower Fraction $> 0.2$). In this zone, a high level of social organization proves to be very effective, reducing victims to a minimum of $16.1$ and increasing survivors to a maximum of $464.6$.
+
+By tracing a path from the worst-case scenario (starting from $77.4$ victims), if we only increase leaders to $50\%$, the number of victims is reduced to $27.2$. However, if we also increase the percentage of followers, the number of victims drops to $16.1$. This demonstrates that leaders are much more effective when they have followers to imitate and propagate their behavior, and vice versa, for the evacuation to be truly efficient.
+
+\subsection*{5: Impact of Crowd Density on Evacuation Outcomes}
+
+The objective of this experiment was to evaluate how crowd density affects the safety and efficiency of stadium evacuation. Density was increased by increasing the total number of people (\texttt{tot\_people}) from $500$ to $2000$, while keeping the ratio of workers to spectators constant (\texttt{workers\_over\_spectator} $= 0.1$).
+\begin{figure}{h}
+\centering
+\includegraphics[width=0.9\textwidth]{../analysis/output/5.1.png}
+\caption{Impact of crowd density on evacuation outcomes.}
+\end{figure}
+
+The results demonstrate a critical inverse relationship between the total number of people and the efficiency of evacuation, caused by congestion.
+\begin{itemize}
+    \item Overall Survival Rate:
+    \begin{itemize}
+        \item The Global Survival rate shows a clear decreasing trend (Correlation: Corr $= -0.262$) ​​as \texttt{tot\_people} increases;
+        \item This confirms that increased density reduces the efficiency of evacuation.
+    \end{itemize}
+    \item Absolute victims:
+    \begin{itemize}
+        \item The number of Absolute Victims (Total Victims) shows a strong upward trend (Correlation: Corr $= 0.344$), increasing from an average of around $100$ victims with $500$ people to more than $300$ with $2000$ people;
+        \item The dispersion of the points is noticeably greater at high densities (close to $2000$), suggesting that under conditions of high congestion, the initial randomness (positions of the agents, location of the fire) has a much more dramatic impact on the final result, leading to collapses in some cases (high points in the graph).
+    \end{itemize}
+\end{itemize}
+
+The main failure mechanism is increased congestion, influenced by the \texttt{modify\_speed} reflex of the agents, since as the population increases, the number of nearby neighbors increases, which exponentially reduces the speed of the agents, causing greater slowdown and more deaths.
+
+Essentially, the workers are always alert and in a leadership role, giving them a high survival rate even at high density, demonstrating the effectiveness of the staffing policy.
+Regarding bystander roles, while the proportion of victims who were panicking shows only a slight upward trend, the crucial absolute number of panicked victims skyrockets with density. This is because panicked agents have a greater perception distance and experience a two-way slowing effect.
 
 
 \end{document}
