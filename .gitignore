@@ -7,3 +7,5 @@
 *.gz
 *.bst
 *.cls
+*.bbl
+*.blg

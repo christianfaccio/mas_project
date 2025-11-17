@@ -31,7 +31,7 @@
 \maketitle
 
 \begin{abstract}
-    The StadiumEvacuation model is an agent-based simulation designed to study crowd evacuation dynamics inside a stadium-type environment when a spreading hazard (for example, a flood or fire front) threatens people’s safety. The model’s top-level intent is to reproduce how individual decision-making, local interactions, staff presence, and stadium geometry combine to produce system-level outcomes (number saved, number of victims, spatial bottlenecks). 
+    The StadiumEvacuation model is an agent-based simulation designed to study crowd evacuation dynamics inside a stadium-type environment when a spreading hazard (for example, a flood or fire front) threatens people's safety \cite{taillandier2018gama}. The model's top-level intent is to reproduce how individual decision-making, local interactions, staff presence, and stadium geometry combine to produce system-level outcomes (number saved, number of victims, spatial bottlenecks). A snapshot of the simulation is shown in Fig.\ref{fig:1}.
 \end{abstract}
 
 \section{Project context and goals}
@@ -307,5 +307,7 @@ The main failure mechanism is increased congestion, influenced by the \texttt{mo
 Essentially, the workers are always alert and in a leadership role, giving them a high survival rate even at high density, demonstrating the effectiveness of the staffing policy.
 Regarding bystander roles, while the proportion of victims who were panicking shows only a slight upward trend, the crucial absolute number of panicked victims skyrockets with density. This is because panicked agents have a greater perception distance and experience a two-way slowing effect.
 
+\bibliographystyle{splncs04}
+\bibliography{references}
 
 \end{document}
