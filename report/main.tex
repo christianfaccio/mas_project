@@ -2,6 +2,16 @@
 %
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily,
+    columns=fullflexible,
+    breaklines=true,
+    frame=single,
+    showtabs=false,
+    tabsize=2,
+    captionpos=b
+}
 %
 \begin{document}
 
@@ -18,6 +28,170 @@
 \institute{University of Alicante}
 
 \maketitle
+
+\begin{abstract}
+    The StadiumEvacuation model is an agent-based simulation designed to study crowd evacuation dynamics inside a stadium-type environment when a spreading hazard (for example, a flood or fire front) threatens people’s safety. The model’s top-level intent is to reproduce how individual decision-making, local interactions, staff presence, and stadium geometry combine to produce system-level outcomes (number saved, number of victims, spatial bottlenecks). 
+\end{abstract}
+
+\section{Project context and goals}
+
+Parameters are exposed globally so experiments can sweep them: total population, relative number of workers, perceptual ranges, movement speed, hazard speed ratio, and behavioral composition. The model therefore targets sensitivity analysis and “what-if” testing (how many workers, how long perception ranges, how fast hazard spreads) to inform design or management decisions.
+
+The modeling approach is explicit: each human is an autonomous agent (spectator or worker) with perceptions, beliefs, desires and simple plans (a lightweight BDI-like control). The physical layout is read from GIS shapefiles so the geometry is realistic: roads (navigable network), buildings (obstacles) and evacuation points (exits). A single hazard agent expands its shape over time and “covers” agents, which then become victims. The model records per-role and per-type tallies to enable detailed post-run analysis. 
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{images/snapshot.png}  %Adjust width as needed
+\caption{StadiumEvacuation model screenshot showing agents evacuating the stadium while a hazard (red area) spreads.}
+\label{fig:1}
+\end{figure}
+
+\section{Spatial environment and representation}
+
+The environment is GIS-driven. The model expects three shapefiles under the \texttt{../includes/} folder: \texttt{paths.shp} (referred to by road\_file), \texttt{buildings.shp} (buildings) and \texttt{exits.shp} (evac\_points). These layers are used to build the world geometry and navigation infrastructure. The code creates road, building and evacuation\_point species from those files in init:
+
+The network extent (geometry shape) is computed as the envelope of the union of the three layers:
+\begin{lstlisting}
+geometry_shape <- envelope(envelope(road_file)+envelope(buildings)+envelope(evac_points));
+\end{lstlisting}
+    
+Which ensures the simulation world covers all relevant spatial elements. Roads, instead, are converted to a graph structure to enable agent navigation:
+
+\begin{lstlisting}
+road_network <- as_edge_graph(road);
+\end{lstlisting}
+
+This graph is used by agents for pathfinding (\texttt{do goto target: safety\_point on: road\_network speed: speed;}), which produces realistic network-constrained movement.
+
+Design considerations and expectations implied by the code:
+\begin{itemize}
+    \item The \texttt{paths.shp} layer should provide a fully connected navigation network. Every intersection between overlapping lines has been manually defined; otherwise the system wouldn’t work properly. If the network contains disconnected components, some agents may start in areas with no path to the exits. The code assigns \texttt{safety\_point <- evacuation\_point closest\_to(self)}, but if there’s no route to that point, the agent’s goto command may fail or take unrealistic Euclidean shortcuts depending on the simulator;
+    \item \texttt{evac\_points} should be positioned so agents can reach them from roads (snapping or nearest-node logic is necessary if shapefiles are slightly misaligned);
+    \item CRS consistency is assumed for the three shapefiles; mismatched projections will produce incorrect distances and routing.
+\end{itemize}
+
+The environment is also visualized: the three species \texttt{road}, \texttt{building} and \texttt{evacuation\_point} define aspect default drawing rules (colors, borders), and evacuation points draw themselves with a radius that reflects the number of saved agents close to them (\texttt{count\_exit\_spectators}, \texttt{count\_exit\_workers}), which is a visual feedback mechanism for flows through exits.
+
+\section{Agent design, internal states and behaviors}
+
+The model implements three species with clear and defined responsibilities: \texttt{spectator}, \texttt{worker} and \texttt{hazard}. Spectators and workers both have mobility and decision logic; workers are specialized leaders. The code uses reflexes and plans (BDI-like constructs) to capture perception $\to$ decision $\to$ action cycles. Below I describe attributes and behavior mechanisms in detail and call out implementation caveats that appear directly from the code.
+
+\subsection{Spectators}
+
+Spectators represent the core of the population within the \texttt{StadiumEvacuation} model, embodying the collective dynamics of ordinary individuals attending a large-scale event. Their behavior is modeled at the individual level, where each spectator acts as an autonomous agent capable of \textit{perceiving}, \textit{reacting}, and \textit{influencing} others in their surroundings. In the simulation, spectators are not passive entities but decision-makers operating under limited information, perception constraints, and social influences, features that collectively generate emergent crowd behavior.
+
+\subsubsection{Initialization and Spatial Distribution}
+
+At the beginning of each simulation run, a defined number of spectators (\texttt{nb\_of\_spectators}) is created according to the total population (\texttt{tot\_people}) and the ratio of workers to spectators (\texttt{workers\_over\_spectators}). Each spectator is placed at a random navigable position within the road network, ensuring that agents start from realistic and accessible areas within the stadium.
+
+In the code, this initialization is achieved through:
+
+\begin{lstlisting}
+create spectator number:nb_of_spectators {
+    location <- any_location_in(one_of(road)); 
+    safety_point <- evacuation_point closest_to(self);
+    perception_distance <- rnd(min_perception_distance, max_perception_distance); 
+}
+\end{lstlisting}
+
+This means that each spectator receives an individualized exit target (\texttt{safety\_point}), the nearest evacuation point defined in the GIS layer, and a randomized perception distance, which controls how far they can detect the hazard or observe others reacting. These parameters introduce natural variability, reflecting differences in attention, awareness, and spatial orientation among real people.
+
+\subsubsection{Behavioral Typologies: Leaders, Followers, and Panic Agents} 
+
+The population of spectators is intentionally heterogeneous, composed of three behavioral archetypes that define how each agent perceives and reacts to the situation:
+\begin{itemize}
+    \item \textbf{Leaders}: proactive individuals who tend to take initiative when danger arises. They react faster to the hazard, influence others through example, and contribute to the formation of organized evacuation fronts;
+    \item \textbf{Followers}: reactive individuals who depend heavily on social observation. They begin to move only after noticing others (leaders, workers, or alerted neighbors) reacting to the threat;
+    \item \textbf{Panicked}: individuals overwhelmed by the situation. They act erratically, move less efficiently, and can even slow down surrounding agents by creating local turbulence or congestion.
+\end{itemize}
+
+This differentiation is implemented probabilistically at initialization:
+\begin{lstlisting}
+float r <- rnd(1.0);
+    
+if (r < leader_frac) {
+    role <- "leader";
+} else if (r < (leader_frac + follower_frac)) {
+    role <- "follower";
+} else {
+    role <- "panic";
+    perception_distance <- 1.0;
+}
+\end{lstlisting}
+
+Here, \texttt{leader\_frac} and \texttt{follower\_frac} are adjustable global parameters that determine the composition of the crowd, while the remaining fraction corresponds to panic agents. Panic individuals are assigned a fixed short perception range (1.0 meter), representing their reduced situational awareness.
+
+\subsubsection{Perception and Alert Propagation} Spectators do not initially know that a hazard exists. They begin in a “watching” state, unaware of any danger. The transition from ignorance to alertness occurs through perception-based interactions. Each spectator regularly checks its surroundings for two triggers:
+\begin{itemize}
+    \item Direct perception of the \textbf{hazard}, if it enters their perception radius;
+    \item Observation of \textbf{alerted agents} (either workers or spectators already reacting).
+\end{itemize}
+
+This mechanism is captured by the reflex:
+\begin{lstlisting}
+// Check for nearby alerted spectators
+list<spectator> nearby_alerted <- (spectator at_distance perception_distance) where (each.being_alerted);
+if not empty(nearby_alerted) {
+    being_alerted <- true;
+    do remove_belief(not_alerted);
+    do add_belief(alerted);
+    do remove_desire(watch);
+    do add_desire(predicate: escape, strength: 5.0);
+}
+\end{lstlisting}
+
+When triggered, the agent’s internal state changes, it removes the \texttt{not\_alerted} belief, adds the \texttt{alerted} belief, and replaces the \texttt{watch} desire with an \texttt{escape} desire of higher strength. This chain of changes follows the \textbf{Belief-Desire-Intention (BDI)} cognitive model, a simple but effective decision framework used in agent-based systems to simulate human reasoning. As a result, awareness spreads organically through the crowd, resembling a social contagion process where individuals influence each other’s perception of risk.
+
+\subsubsection{Movement and Navigation Dynamics}
+
+Once alerted, spectators initiate movement toward their assigned evacuation point. Navigation occurs on the road network graph, generated from the GIS path data. Agents use GAMA’s \texttt{goto} command with the parameter on: \texttt{road\_network}, which ensures pathfinding along connected routes and prevents crossing through walls or restricted areas.
+
+\begin{lstlisting}
+reflex move_to_safety when: being_alerted and not (saved or drowned) {
+    do goto target: safety_point on: road_network speed: speed;
+}
+\end{lstlisting}
+
+\texttt{speed} is a dynamic attribute influenced by both crowd density and psychological state. Each agent’s velocity is adjusted depending on how many others are within its perception radius, a mechanism that reproduces congestion effects:
+\begin{lstlisting}
+    speed <- speed * (0.5 + 0.5 * exp(-exp_weight * n_people));
+\end{lstlisting}
+
+As local density increases, this expression reduces the effective speed, simulating how individuals naturally slow down when surrounded by large groups.
+
+Additionally, roles exert \textit{social influence} on the movement of nearby agents. Leaders increase the speed of those around them, promoting more decisive motion, whereas panic agents decrease it, symbolizing confusion and hesitation. This feedback mechanism creates self-organizing evacuation flows, where zones dominated by leaders clear faster while areas with panic individuals tend to clog.
+
+\subsubsection{Hazard Interaction and Outcome Tracking}
+
+The interaction between spectators and the hazard defines the critical outcome of the evacuation. The hazard spreads outward from an initial point as an expanding front, representing elements like fire, smoke, or flooding. As it advances, spectators must move toward their designated exits before being overtaken.
+
+Each step, the model checks whether a spectator’s position overlaps with the hazard. If so, the agent is marked as drowned, removed from the simulation, and the global and role-specific victim counters are updated. Conversely, when an agent reaches its safety point, it is marked as saved, and similar counters track successful evacuations.
+
+These two outcomes , drowning or escaping , form the terminal states of every spectator. Together, they provide quantitative indicators of evacuation efficiency and risk. By analyzing the ratios of survivors to victims across behavioral types and scenarios, researchers can evaluate how leadership, panic, perception, and spatial factors influence overall safety and the effectiveness of evacuation strategies.
+
+\subsubsection{Emergent Behavior and Interpretation}
+
+Through these mechanisms, the spectators collectively produce complex and realistic evacuation dynamics. Local rules , such as limited perception, social influence, and adaptive speed , generate emergent phenomena like \textbf{bottlenecks}, \textbf{wave-like evacuation fronts}, and \textbf{nonlinear reaction patterns}.
+
+For example, in regions with many panic agents, the flow slows dramatically, creating clusters of congestion that delay evacuation even for individuals who are otherwise capable of escaping. Conversely, when leaders or workers dominate a region, movement becomes more organized and efficient, reducing overall evacuation time.
+
+The spectator system thus represents the emergent social dimension of the evacuation process. While each agent follows simple behavioral rules, their interactions yield global outcomes that mirror the complexity of real human crowds. By varying parameters such as the ratio of leaders to followers, perception ranges, or total population size, researchers can explore a wide range of scenarios , from orderly evacuations to chaotic panics ,  and analyze how individual diversity shapes collective safety outcomes.
+
+\subsection{Workers}
+
+Workers represent trained staff or security personnel responsible for guiding spectators during evacuation. Structurally similar to spectators, they differ in that each worker begins the simulation as a leader and in an alerted state, automatically adopting the escape desire. Their perception distance is randomly assigned, defining how far their influence extends.
+
+Conceptually, workers act as mobile sources of order and information, helping to spread awareness and promote faster responses among nearby spectators. Through the \texttt{role\_influence} reflex, they increase the speed of surrounding agents, enhancing group coordination and reducing panic effects.
+
+They move deterministically along the \texttt{road\_network} toward their assigned \texttt{safety\_point}, never exhibiting chaotic or panic-driven behavior. When reached by the hazard, they are recorded as victims; when safe, they increment the saved counters before being removed. Overall, workers embody the guiding and stabilizing force of the evacuation, crucial for efficient collective movement under hazard pressure.
+
+\subsection{Hazard}
+
+The hazard represents an expanding threat, such as fire or smoke, that starts from a random point within the stadium and grows outward over time. Its spread rate is determined by a predefined propagation speed, calculated as a multiple of the agents’ movement speed. This allows realistic control of how quickly the danger evolves relative to human mobility.
+
+Visually displayed as a semi-transparent red area, the hazard expands continuously but remains confined within the simulated environment. Its speed is recalculated at initialization to ensure consistency across experiments. Overall, it functions as the primary environmental pressure driving agent behavior and evacuation dynamics, influencing both decision-making and final outcomes.
+
+\section{Experiments}
 
 
 
