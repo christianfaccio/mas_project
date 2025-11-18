@@ -3,6 +3,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
 \usepackage{caption}
+\usepackage{float}
 \usepackage{listings}
 \lstset{
     basicstyle=\ttfamily,
@@ -31,16 +32,18 @@
 \maketitle
 
 \begin{abstract}
-    The StadiumEvacuation model is an agent-based simulation designed to study crowd evacuation dynamics inside a stadium-type environment when a spreading hazard (for example, a flood or fire front) threatens people's safety \cite{taillandier2018gama}. The model's top-level intent is to reproduce how individual decision-making, local interactions, staff presence, and stadium geometry combine to produce system-level outcomes (number saved, number of victims, spatial bottlenecks). A snapshot of the simulation is shown in Fig.\ref{fig:1}.
+    Crowd evacuation from large buildings is a critical aspect of public safety, especially during emergencies. This problem can be well modeled using agent-based models (ABM), where individuals are represented as autonomous agents with specific behaviors and interactions. Simulations can then be made to analyze evacuation dynamics and optimize safety protocols. This report presents the StadiumEvacuation model, an ABM developed using the GAMA platform \cite{taillandier2018gama}, which simulates crowd evacuation in a stadium environment under the threat of a spreading hazard. A snapshot of the simulation is shown in Fig.\ref{fig:1}.
 \end{abstract}
-
+     
 \section{Project context and goals}
+
+The \textit{StadiumEvacuation} model is an agent-based simulation designed to study crowd evacuation dynamics inside a stadium-type environment when a spreading hazard (for example, a flood or fire front) threatens people's safety. The model's top-level intent is to reproduce how individual decision-making, local interactions, staff presence, and stadium geometry combine to produce system-level outcomes (number saved, number of victims, spatial bottlenecks).  
 
 Parameters are exposed globally so experiments can sweep them: total population, relative number of workers, perceptual ranges, movement speed, hazard speed ratio, and behavioral composition. The model therefore targets sensitivity analysis and “what-if” testing (how many workers, how long perception ranges, how fast hazard spreads) to inform design or management decisions.
 
-The modeling approach is explicit: each human is an autonomous agent (spectator or worker) with perceptions, beliefs, desires and simple plans (a lightweight BDI-like control). The physical layout is read from GIS shapefiles so the geometry is realistic: roads (navigable network), buildings (obstacles) and evacuation points (exits). A single hazard agent expands its shape over time and “covers” agents, which then become victims. The model records per-role and per-type tallies to enable detailed post-run analysis. 
+To model the problem we used ABM: each human is an autonomous agent (spectator or worker) with perceptions, beliefs, desires and simple plans (a lightweight BDI-like control). The physical layout is read from GIS shapefiles so the geometry is realistic: roads (navigable network), buildings (obstacles) and evacuation points (exits). A single hazard agent expands its shape over time and “covers” agents, which then become victims. The model records per-role and per-type data to enable detailed post-run analysis. 
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{images/snapshot.png}  %Adjust width as needed
 \caption{StadiumEvacuation model screenshot showing agents evacuating the stadium while a hazard (red area) spreads.}
@@ -49,33 +52,33 @@ The modeling approach is explicit: each human is an autonomous agent (spectator 
 
 \section{Spatial environment and representation}
 
-The environment is GIS-driven. The model expects three shapefiles under the \texttt{../includes/} folder: \texttt{paths.shp} (referred to by road\_file), \texttt{buildings.shp} (buildings) and \texttt{exits.shp} (evac\_points). These layers are used to build the world geometry and navigation infrastructure. The code creates road, building and evacuation\_point species from those files in init:
+The environment is based on GIS data. The model expects three shapefiles under the \texttt{../includes/} folder: \texttt{paths.shp} (roads), \texttt{buildings.shp} (buildings) and \texttt{exits.shp} (evacuation points). These layers are used to build the world geometry and navigation infrastructure. The code creates \texttt{road}, \texttt{building} and \texttt{evacuation\_point} species from those files in the \texttt{init:} section.
 
-The network extent (geometry shape) is computed as the envelope of the union of the three layers:
+The geometry shape is computed as the envelope of the union of the three layers:
 \begin{lstlisting}
 geometry_shape <- envelope(envelope(road_file)+envelope(buildings)+envelope(evac_points));
 \end{lstlisting}
     
-Which ensures the simulation world covers all relevant spatial elements. Roads, instead, are converted to a graph structure to enable agent navigation:
+Roads, instead, are converted to a graph structure to enable agent navigation:
 
 \begin{lstlisting}
 road_network <- as_edge_graph(road);
 \end{lstlisting}
 
-This graph is used by agents for pathfinding (\texttt{do goto target: safety\_point on: road\_network speed: speed;}), which produces realistic network-constrained movement.
-
-Design considerations and expectations implied by the code:
+This graph is used by agents for pathfinding (\texttt{do goto target: safety\_point on: road\_network speed: speed;}), which produces realistic movements.
+\newpage
+The code thus implies some design considerations and expectations:
 \begin{itemize}
-    \item The \texttt{paths.shp} layer should provide a fully connected navigation network. Every intersection between overlapping lines has been manually defined; otherwise the system wouldn’t work properly. If the network contains disconnected components, some agents may start in areas with no path to the exits. The code assigns \texttt{safety\_point <- evacuation\_point closest\_to(self)}, but if there’s no route to that point, the agent’s goto command may fail or take unrealistic Euclidean shortcuts depending on the simulator;
+    \item The \texttt{paths.shp} layer should provide a fully connected navigation network. Every intersection between overlapping lines has been manually defined using the QGIS software \cite{QGIS_software}. If the network contains disconnected components, some agents may start in areas with no path to the exits. The code assigns \texttt{safety\_point <- evacuation\_point closest\_to(self)}, but if there’s no route to that point, the agent’s \texttt{goto} command may fail or take unrealistic Euclidean shortcuts depending on the simulator;
     \item \texttt{evac\_points} should be positioned so agents can reach them from roads (snapping or nearest-node logic is necessary if shapefiles are slightly misaligned);
-    \item CRS consistency is assumed for the three shapefiles; mismatched projections will produce incorrect distances and routing.
+    \item Coordinate Reference System (CRS) consistency is assumed for the three shapefiles; mismatched projections will produce incorrect distances and routing.
 \end{itemize}
 
 The environment is also visualized: the three species \texttt{road}, \texttt{building} and \texttt{evacuation\_point} define aspect default drawing rules (colors, borders), and evacuation points draw themselves with a radius that reflects the number of saved agents close to them (\texttt{count\_exit\_spectators}, \texttt{count\_exit\_workers}), which is a visual feedback mechanism for flows through exits.
 
 \section{Agent design, internal states and behaviors}
 
-The model implements three species with clear and defined responsibilities: \texttt{spectator}, \texttt{worker} and \texttt{hazard}. Spectators and workers both have mobility and decision logic; workers are specialized leaders. The code uses reflexes and plans (BDI-like constructs) to capture perception $\to$ decision $\to$ action cycles. Below I describe attributes and behavior mechanisms in detail and call out implementation caveats that appear directly from the code.
+The model implements three species with clear and defined responsibilities: \texttt{spectator}, \texttt{worker} and \texttt{hazard}. Spectators and workers both have mobility and decision logic; workers are specialized leaders. The code uses reflexes as plans (BDI-like constructs since using a complete BDI crashes the model using 1000+ agents) to capture perception $\to$ decision $\to$ action cycles. Now we are going to describe attributes and behavior mechanisms in detail and implementation concepts that are necessary to understand how the model works.
 
 \subsection{Spectators}
 
@@ -83,7 +86,7 @@ Spectators represent the core of the population within the \texttt{StadiumEvacua
 
 \subsubsection{Initialization and Spatial Distribution}
 
-At the beginning of each simulation run, a defined number of spectators (\texttt{nb\_of\_spectators}) is created according to the total population (\texttt{tot\_people}) and the ratio of workers to spectators (\texttt{workers\_over\_spectators}). Each spectator is placed at a random navigable position within the road network, ensuring that agents start from realistic and accessible areas within the stadium.
+At the beginning of each simulation run, a defined number of spectators (\texttt{nb\_of\_spectators}) is created according to the total population (\texttt{tot\_people}) and the ratio of workers to spectators (\texttt{workers\_over\_spectators}). Each spectator is placed at a random position within the road network, ensuring that agents start from realistic and accessible areas within the stadium.
 
 In the code, this initialization is achieved through:
 
@@ -106,7 +109,7 @@ The population of spectators is intentionally heterogeneous, composed of three b
     \item \textbf{Panicked}: individuals overwhelmed by the situation. They act erratically, move less efficiently, and can even slow down surrounding agents by creating local turbulence or congestion.
 \end{itemize}
 
-This differentiation is implemented probabilistically at initialization:
+This differentiation is implemented stochastically at initialization:
 \begin{lstlisting}
 float r <- rnd(1.0);
     
@@ -224,8 +227,6 @@ Moreover, we can inspect the results in more detail, considering the sub-categor
 
 This experiment was designed to quantify the impact of the parameter \newline \texttt{max\_perception\_distance} on evacuation outcomes. A batch simulation was configured to test this parameter across a range from $200.0$ to $1200.0$, with $20$ repetitions per $100.0$-unit step. The primary metrics tracked were the mean overall survival rate, the standard deviation of survival (to measure variability), the mean number of panic victims, and the mean survival rate of agents who entered a panic state.
 
-The results indicate a complex and non-linear relationship between perception distance and overall survival. Mean survival was lowest at minimal perception distances ($\approx 45\%$ at $200-400$), suggesting a baseline inability to locate exits. A significant improvement occurred at $500.0$ ($59.8\%$ mean survival), with a general performance peak observed between $600.0$ and $800.0$ ($63-64\%$). Notably, the trend was not linear; after a dip, the highest mean survival was recorded at $1100.0$ ($71.1\%$), which was immediately followed by a sharp performance drop at $1200.0$ ($47.5\%$). A critical finding across all settings was the high standard deviation ($18-26\%$), indicating that outcomes are highly stochastic and variable, even with identical parameters.
-
 \begin{figure}
 \centering  
 \includegraphics[width=0.7\textwidth]{../analysis/output/2.png}
@@ -233,29 +234,33 @@ The results indicate a complex and non-linear relationship between perception di
 \label{fig:exp2}
 \end{figure}
 
+The results shown in Fig.\ref{fig:exp2} indicate a complex and non-linear relationship between perception distance and overall survival. Mean survival was lowest at minimal perception distances ($\approx 45\%$ at $200-400$), suggesting a baseline inability to locate exits. A significant improvement occurred at $500.0$ ($59.8\%$ mean survival), with a general performance peak observed between $600.0$ and $800.0$ ($63-64\%$). Notably, the trend was not linear; after a dip, the highest mean survival was recorded at $1100.0$ ($71.1\%$), which was immediately followed by a sharp performance drop at $1200.0$ ($47.5\%$). A critical finding across all settings was the high standard deviation ($18-26\%$), indicating that outcomes are highly stochastic and variable, even with identical parameters.
+
 The analysis of panic-related metrics provided distinct insights. First, the mean number of panic victims (\texttt{panic\_victims\_mean}) remained relatively low and showed no clear correlation with perception distance, fluctuating between $3.0$ and $7.8$. This suggests that perception distance does not significantly influence the likelihood of an agent panicking. However, the \texttt{panic\_survival\_mean} (the survival rate of panicked agents) showed a clear positive trend. At low distances ($200-300$), panicked agents had a $78-85\%$ survival rate, which improved to a consistent $88-93\%$ at distances of $500.0$ and above. This implies that while increased perception doesn't prevent panic, it substantially improves the chances of survival for those who do.
 
 \subsection*{3: Interaction of Agent Speed and Hazard Spread Rate}
 
 This experiment evaluates how evacuation performance in the StadiumEvacuation model is affected by the interaction between human mobility and the speed at which the hazard spreads. The experiment systematically varies two key parameters: \texttt{Speed People} (ranging from $1.0$ to $10.0$) and \texttt{Speed Ratio} ($2.0$ to $5.0$, representing how many times faster the hazard expands compared to the agents). Each parameter combination is repeated 20 times,. This design provides a robust sensitivity analysis of how physical mobility and hazard pressure jointly determine evacuation outcomes.
 
-For every simulation run, the model records the total number of victims and the number of people successfully evacuated. These outputs are averaged for each pair of parameter values and visualized through two heatmaps. The first heatmap displays the average number of saved individuals depending on the two parameters.
+For every simulation run, the model records the total number of victims and the number of people successfully evacuated. These outputs are averaged for each pair of parameter values and visualized through two heatmaps. The first heatmap (Fig.\ref{fig:3.1}) displays the average number of saved individuals depending on the two parameters.
 
 \vspace{0.5cm}
 
 \begin{minipage}{0.45\textwidth}
 \includegraphics[width=\textwidth]{../analysis/output/3.1.png}
 \captionof{figure}{Heatmap showing the average number of saved individuals based on Speed People and Speed Ratio parameters.}
+\label{fig:3.1}
 \end{minipage}
 \hfill 
 \begin{minipage}{0.45\textwidth}
 \includegraphics[width=\textwidth]{../analysis/output/3.2.png}
 \captionof{figure}{Heatmap showing the average number of victims based on Speed People and Speed Ratio parameters.}
+\label{fig:3.2}
 \end{minipage}
 
 \vspace{0.5cm}
 
-The second heatmap summarizes the average number of victims for the same parameter combinations. 
+The second heatmap (Fig.\ref{fig:3.2}) summarizes the average number of victims for the same parameter combinations. 
 Together, these visualizations reveal clear interaction effects: higher agent speed consistently increases survival, while higher hazard speed drastically amplifies casualties, especially when the hazard outruns slower-moving spectators.
 Overall, the experiment demonstrates that evacuation efficiency is dominated not by absolute speed alone, but by the relative speed between agents and hazard. When Speed People grows faster than Speed Ratio, the system experiences significantly fewer victims, whereas the opposite scenario produces a rapid rise in casualties. These results confirm that both the behavioral rules of the agents and the physical expansion rate of the hazard jointly determine the system’s resilience.
 
@@ -270,9 +275,16 @@ For this analysis, the experiment varies two key parameters:
 \end{itemize}
 
 Each unique parameter combination is repeated 20 times, with the objective of mitigating the impact of random factors, such as the initial positions of the agents.
-In each simulation, the total number of victims and the total number of evacuated people were recorded. The averaged results from all runs are visualized through two heatmaps showing the average number of people evacuated and the average number of total victims.
+In each simulation, the total number of victims and the total number of evacuated people were recorded. The averaged results from all runs are visualized through two heatmaps in Fig.\ref{fig:4} showing the average number of people evacuated and the average number of total victims.
 
-These heatmaps show how evacuation efficiency does not depend on a single role, but on the strong synergy between the percentage of leaders and followers. A scenario with a high percentage of both roles is drastically safer than one with a high percentage of just one role, and both are immensely superior to a scenario with no social organization.
+\begin{figure}
+\centering  
+\includegraphics[width=0.9\textwidth]{../analysis/output/4.png}
+\caption{Heatmap showing the average number of evacuated individuals based on Leader and Follower fractions.}
+\label{fig:4}
+\end{figure}
+
+The heatmaps show how evacuation efficiency does not depend on a single role, but on the strong synergy between the percentage of leaders and followers. A scenario with a high percentage of both roles is drastically safer than one with a high percentage of just one role, and both are immensely superior to a scenario with no social organization.
 The worst-case scenario is observed in the bottom-left corner (Leader Fraction $= 0.1$, Follower Fraction $= 0.1$), where the lack of coordinated social guidance is catastrophic. This represents a disorganized crowd that suffers the worst consequences, reaching a maximum of $77.4$ victims and a minimum of only $38.1$ survivors.
 
 On the other hand, the optimal result is found in the upper-right corner of the map (Leader Fraction $> 0.3$, Follower Fraction $> 0.2$). In this zone, a high level of social organization proves to be very effective, reducing victims to a minimum of $16.1$ and increasing survivors to a maximum of $464.6$.
@@ -286,9 +298,10 @@ The objective of this experiment was to evaluate how crowd density affects the s
 \centering
 \includegraphics[width=0.9\textwidth]{../analysis/output/5.1.png}
 \caption{Impact of crowd density on evacuation outcomes.}
+\label{fig:5}
 \end{figure}
 
-The results demonstrate a critical inverse relationship between the total number of people and the efficiency of evacuation, caused by congestion.
+The results shown in Fig.\ref{fig:5} demonstrate a critical inverse relationship between the total number of people and the efficiency of evacuation, caused by congestion.
 \begin{itemize}
     \item Overall Survival Rate:
     \begin{itemize}
@@ -306,6 +319,12 @@ The main failure mechanism is increased congestion, influenced by the \texttt{mo
 
 Essentially, the workers are always alert and in a leadership role, giving them a high survival rate even at high density, demonstrating the effectiveness of the staffing policy.
 Regarding bystander roles, while the proportion of victims who were panicking shows only a slight upward trend, the crucial absolute number of panicked victims skyrockets with density. This is because panicked agents have a greater perception distance and experience a two-way slowing effect.
+
+\section{Conclusions and Future Work}
+
+This report has presented the \textit{StadiumEvacuation} agent-based model, developed using the GAMA platform, to simulate crowd evacuation dynamics in a stadium environment under the threat of a spreading hazard. The model incorporates heterogeneous agent behaviors, realistic spatial representation from GIS data, and key parameters influencing evacuation outcomes. Through a series of experiments, we have demonstrated how factors such as worker-to-spectator ratio, perception distance, agent speed, hazard spread rate, role composition, and crowd density significantly impact evacuation efficiency and safety. The results highlight the importance of social organization, effective communication, and environmental design in managing crowd evacuations. 
+
+Different enhancements could be made to this model in the future: for example, incorporating more complex agent behaviors (e.g., group dynamics, emotional states), simulating different types of hazards with varying spread patterns, or integrating real-time data inputs to adapt evacuation strategies dynamically. Additionally, further validation against empirical data from real-world evacuations could enhance the model's credibility and applicability for practical safety planning.
 
 \bibliographystyle{splncs04}
 \bibliography{references}

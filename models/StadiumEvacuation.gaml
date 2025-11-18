@@ -15,7 +15,7 @@ model StadiumEvacuation
 global {
 	
 	// People parameters
-	float workers_over_spectators <- 0.1; // ex. 2 workers per 8 spectators
+	float workers_over_spectators <- 0.1; // ex. 1 workers per 10 spectators
 	int tot_people <- 500;
 	int nb_of_spectators <- int((1 / (1 + workers_over_spectators)) * tot_people);
 	int nb_of_workers <- tot_people - nb_of_spectators;
@@ -92,7 +92,7 @@ global {
 	
 }
 
-// OK
+// hazard agent
 species hazard {
 	
 	date catastrophe_date;
@@ -104,11 +104,11 @@ species hazard {
 	}
 	
 	aspect default {
-		// Corrected transparency syntax (0-255, not 0-1)
 		draw shape color: rgb(255, 0, 0, 150); // 150 is ~60% opacity
 	}
 }
 
+// spectator agent
 species spectator skills:[moving] control: simple_bdi {
 	
 	bool drowned;
@@ -132,18 +132,20 @@ species spectator skills:[moving] control: simple_bdi {
    		do add_belief(not_alerted);
    		do add_desire(watch);
 	   	float r <- rnd(1.0);
-		    if (r < leader_frac) {
-		        role <- "leader";
-		    } else if (r < (leader_frac + follower_frac)) {
-		        role <- "follower";
-		    } else {
-		        role <- "panic";
-		        perception_distance <- 1.0;
-		    }
+	   	
+	    if (r < leader_frac) {
+	        role <- "leader";
+	    } else if (r < (leader_frac + follower_frac)) {
+	        role <- "follower";
+	    } else {
+	        role <- "panic";
+	        perception_distance <- 1.0;
+	    }
    	}
    	
    	// Reflexes ---------------------------------------------------------------------------------------
     
+    // for dead spectators
     reflex drown when:not(drowned or saved) {
 	    if(first(hazard) covers self){
 	        drowned <- true;
@@ -162,7 +164,8 @@ species spectator skills:[moving] control: simple_bdi {
 	        do die;
 	    }
 	}
-
+	
+	// for saved spectators
 	reflex escaped when: not(saved) and location distance_to safety_point < 2#m{
 	    saved <- true;
 	    tot_saved_people <- tot_saved_people + 1;
@@ -180,6 +183,7 @@ species spectator skills:[moving] control: simple_bdi {
 	    do die;
 	}
     
+    // when alerted 
     reflex move_to_safety when: being_alerted and not (saved or drowned) {
         do goto target: safety_point on: road_network speed: speed;
     }
@@ -217,6 +221,7 @@ species spectator skills:[moving] control: simple_bdi {
    		speed <- speed * (0.5 + 0.5 * exp(-exp_weight * n_people));
    	}
    	
+   	// based on role the speed of nearby agents is modified
    	reflex role_influence {
 	    list<spectator> nearby_spectators <- (spectator at_distance perception_distance) where (each != self);
 	    list<worker> nearby_workers <- (worker at_distance perception_distance) where (each != self);
@@ -270,6 +275,7 @@ species spectator skills:[moving] control: simple_bdi {
     
 }
 
+// worker agent
 species worker skills: [moving] control: simple_bdi{
 	
 	bool drowned;
@@ -359,7 +365,7 @@ species worker skills: [moving] control: simple_bdi{
     }
 }
 
-// OK
+// evacuation points
 species evacuation_point {
 	
 	int count_exit_spectators <- 0 update: length((spectator where each.saved) at_distance 2#m);
@@ -371,22 +377,23 @@ species evacuation_point {
 	}
 }
 
-// OK
+// roads
 species road {
 	aspect default{
 		draw shape width: 1#m color:rgb(55,0,0);
 	}	
 }
 
-// OK
+// buildings
 species building {
 	aspect default {
 		draw shape color: #gray border: #black depth: 1;
 	}
 }
 
+// EXPERIMENTS ----------------------------------------------------------------------------------------------------------
 
-experiment "Run_Stadium" type:gui {
+experiment "test" type:gui {
     output {
         display my_display type:3d axes:false{ 
             species road;
